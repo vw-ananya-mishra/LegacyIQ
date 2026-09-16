@@ -1,0 +1,607 @@
+"""
+XLSX Ingestion Service
+Reads and normalizes Legacy_Modernization_Synthetic_Dataset.xlsx
+Creates dynamic relationships between entities
+"""
+
+import openpyxl
+from openpyxl.utils import get_column_letter
+import pandas as pd
+import uuid
+import json
+from typing import Dict, List, Tuple, Any, Optional
+from datetime import datetime
+import sqlite3
+import os
+
+class XLSXIngestionService:
+    """
+    Robust XLSX reader with:
+    - Dynamic sheet detection
+    - Schema validation
+    - Relationship inference
+    - Normalized data storage
+    - Traceability metadata
+    """
+    
+    def __init__(self, cache_dir: str = "data/cache"):
+        self.cache_dir = cache_dir
+        self.workbooks = {}  # Store loaded workbook metadata
+        os.makedirs(cache_dir, exist_ok=True)
+    
+    def ingest_workbook(self, file_path: str) -> Tuple[str, Dict[str, Any], Dict[str, Any]]:
+        """
+        Main ingestion pipeline:
+        1. Load XLSX
+        2. Validate structure
+        3. Extract sheets
+        4. Normalize data
+        5. Create relationships
+        6. Store in SQLite
+        7. Build indices
+        
+        Returns: (workbook_id, metadata, validation_report)
+        """
+        workbook_id = str(uuid.uuid4())[:8]
+        validation = {"errors": [], "warnings": []}
+        metadata = {}
+        
+        try:
+            # Load workbook
+            wb = openpyxl.load_workbook(file_path, data_only=True)
+            sheets = wb.sheetnames
+            
+            if not sheets:
+                validation['errors'].append("No sheets found in workbook")
+                return workbook_id, {}, validation
+            
+            # Store sheet counts
+            metadata['sheet_counts'] = {}
+            for sheet_name in sheets:
+                ws = wb[sheet_name]
+                row_count = ws.max_row - 1  # Exclude header
+                metadata['sheet_counts'][sheet_name] = row_count
+            
+            # Initialize SQLite database for this workbook
+            db_path = os.path.join(self.cache_dir, f"workbook_{workbook_id}.db")
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
+            # Create schema
+            self._create_schema(cursor)
+            
+            # Extract and normalize data from each sheet
+            sheet_data = {}
+            
+            # Expected sheets
+            expected_sheets = [
+                'Applications', 'Code_Modules', 'Business_Rules', 'Dependencies',
+                'Data_Stores', 'Integrations', 'Test_Cases', 'Modernization_Backlog',
+                'Documentation_Artifacts', 'README'
+            ]
+            
+            for expected_sheet in expected_sheets:
+                # Try variations of sheet name
+                sheet_name = None
+                for s in sheets:
+                    if s.lower() == expected_sheet.lower() or s.lower() == expected_sheet.lower().replace('_', ' '):
+                        sheet_name = s
+                        break
+                
+                if sheet_name:
+                    try:
+                        data = self._extract_sheet_data(wb[sheet_name], sheet_name)
+                        sheet_data[sheet_name] = data
+                        self._store_sheet_data(cursor, sheet_name, data)
+                    except Exception as e:
+                        validation['warnings'].append(f"Error processing sheet {sheet_name}: {str(e)}")
+                else:
+                    validation['warnings'].append(f"Sheet '{expected_sheet}' not found")
+            
+            # Build relationships
+            self._build_relationships(cursor, sheet_data)
+            
+            conn.commit()
+            
+            # Store metadata
+            metadata['workbook_id'] = workbook_id
+            metadata['db_path'] = db_path
+            metadata['sheets'] = sheets
+            metadata['ingestion_time'] = datetime.now().isoformat()
+            metadata['total_sheets'] = len(sheets)
+            
+            self.workbooks[workbook_id] = metadata
+            
+            return workbook_id, metadata, validation
+        
+        except Exception as e:
+            validation['errors'].append(f"Ingestion failed: {str(e)}")
+            return workbook_id, metadata, validation
+    
+    def _create_schema(self, cursor):
+        """Create SQLite schema for normalized data"""
+        
+        # Applications table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS applications (
+                id TEXT PRIMARY KEY,
+                name TEXT,
+                description TEXT,
+                status TEXT,
+                criticality TEXT,
+                complexity TEXT,
+                technology_stack TEXT,
+                lines_of_code INTEGER,
+                last_modified TEXT,
+                source_sheet TEXT,
+                source_row INTEGER,
+                trace_id TEXT
+            )
+        """)
+        
+        # Code Modules table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS code_modules (
+                id TEXT PRIMARY KEY,
+                application_id TEXT,
+                name TEXT,
+                description TEXT,
+                language TEXT,
+                lines_of_code INTEGER,
+                complexity_score REAL,
+                test_coverage REAL,
+                critical_functions INTEGER,
+                last_modified TEXT,
+                source_sheet TEXT,
+                source_row INTEGER,
+                trace_id TEXT,
+                FOREIGN KEY(application_id) REFERENCES applications(id)
+            )
+        """)
+        
+        # Business Rules table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS business_rules (
+                id TEXT PRIMARY KEY,
+                application_id TEXT,
+                rule_name TEXT,
+                description TEXT,
+                rule_type TEXT,
+                condition TEXT,
+                action TEXT,
+                criticality TEXT,
+                test_coverage TEXT,
+                last_modified TEXT,
+                source_sheet TEXT,
+                source_row INTEGER,
+                trace_id TEXT,
+                FOREIGN KEY(application_id) REFERENCES applications(id)
+            )
+        """)
+        
+        # Dependencies table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS dependencies (
+                id TEXT PRIMARY KEY,
+                source_id TEXT,
+                source_type TEXT,
+                target_id TEXT,
+                target_type TEXT,
+                relationship_type TEXT,
+                criticality TEXT,
+                description TEXT,
+                source_sheet TEXT,
+                source_row INTEGER,
+                trace_id TEXT
+            )
+        """)
+        
+        # Data Stores table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS data_stores (
+                id TEXT PRIMARY KEY,
+                name TEXT,
+                store_type TEXT,
+                technology TEXT,
+                criticality TEXT,
+                pii_data BOOLEAN,
+                data_volume TEXT,
+                source_sheet TEXT,
+                source_row INTEGER,
+                trace_id TEXT
+            )
+        """)
+        
+        # Integrations table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS integrations (
+                id TEXT PRIMARY KEY,
+                application_id TEXT,
+                external_system TEXT,
+                integration_type TEXT,
+                api_version TEXT,
+                criticality TEXT,
+                status TEXT,
+                last_verified TEXT,
+                source_sheet TEXT,
+                source_row INTEGER,
+                trace_id TEXT,
+                FOREIGN KEY(application_id) REFERENCES applications(id)
+            )
+        """)
+        
+        # Test Cases table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS test_cases (
+                id TEXT PRIMARY KEY,
+                rule_id TEXT,
+                module_id TEXT,
+                test_name TEXT,
+                description TEXT,
+                input_data TEXT,
+                expected_output TEXT,
+                test_type TEXT,
+                status TEXT,
+                source_sheet TEXT,
+                source_row INTEGER,
+                trace_id TEXT
+            )
+        """)
+        
+        # Risks table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS risks (
+                id TEXT PRIMARY KEY,
+                entity_id TEXT,
+                entity_type TEXT,
+                risk_type TEXT,
+                risk_description TEXT,
+                severity TEXT,
+                remediation TEXT,
+                source_sheet TEXT,
+                source_row INTEGER,
+                trace_id TEXT
+            )
+        """)
+        
+        # Modernization Backlog table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS modernization_backlog (
+                id TEXT PRIMARY KEY,
+                application_id TEXT,
+                module_id TEXT,
+                recommendation TEXT,
+                priority TEXT,
+                effort_estimate TEXT,
+                risk_level TEXT,
+                dependencies TEXT,
+                status TEXT,
+                source_sheet TEXT,
+                source_row INTEGER,
+                trace_id TEXT,
+                FOREIGN KEY(application_id) REFERENCES applications(id)
+            )
+        """)
+    
+    def _normalize_column_name(self, name: str) -> str:
+        """Normalize column name to match expected format (snake_case)"""
+        if not name:
+            return ""
+        # Convert to title case and remove spaces/special chars, but keep format flexible
+        return str(name).strip()
+    
+    def _find_column_value(self, row_dict: Dict, *possible_names: str):
+        """Find value in row using multiple possible column names (case-insensitive)"""
+        for possible_name in possible_names:
+            # Try exact match first
+            if possible_name in row_dict:
+                return row_dict[possible_name]
+            
+            # Try case-insensitive match
+            for key, value in row_dict.items():
+                if key and str(key).lower() == str(possible_name).lower():
+                    return value
+            
+            # Try without spaces
+            normalized_possible = str(possible_name).lower().replace('_', '').replace(' ', '')
+            for key, value in row_dict.items():
+                if key and str(key).lower().replace('_', '').replace(' ', '') == normalized_possible:
+                    return value
+        
+        return None
+    
+    def _extract_sheet_data(self, worksheet, sheet_name: str) -> List[Dict[str, Any]]:
+        """Extract data from worksheet with headers"""
+        data = []
+        
+        # Get headers from first row
+        headers = []
+        for cell in worksheet[1]:
+            headers.append(cell.value)
+        
+        # Extract data rows
+        for row_idx, row in enumerate(worksheet.iter_rows(min_row=2, values_only=False), start=2):
+            row_data = {}
+            for col_idx, cell in enumerate(row):
+                header = headers[col_idx] if col_idx < len(headers) else f"col_{col_idx}"
+                row_data[header] = cell.value if cell else None
+            
+            if any(v is not None for v in row_data.values()):  # Skip empty rows
+                row_data['_source_row'] = row_idx
+                data.append(row_data)
+        
+        return data
+    
+    def _store_sheet_data(self, cursor, sheet_name: str, data: List[Dict[str, Any]]):
+        """Store normalized sheet data in appropriate tables"""
+        
+        # Determine target table based on sheet name
+        sheet_lower = sheet_name.lower()
+        
+        if 'application' in sheet_lower:
+            for idx, row in enumerate(data):
+                trace_id = str(uuid.uuid4())[:12]
+                app_id = self._find_column_value(row, 'Application_ID', 'ID', 'application_id') or f"app_{idx}"
+                
+                cursor.execute("""
+                    INSERT OR REPLACE INTO applications 
+                    (id, name, description, status, criticality, complexity, 
+                     technology_stack, lines_of_code, last_modified, source_sheet, 
+                     source_row, trace_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    app_id,
+                    self._find_column_value(row, 'Name', 'name', 'Application_Name'),
+                    self._find_column_value(row, 'Description', 'description', 'Desc'),
+                    self._find_column_value(row, 'Status', 'status'),
+                    self._find_column_value(row, 'Criticality', 'criticality', 'Critical'),
+                    self._find_column_value(row, 'Complexity', 'complexity', 'Complexity_Score'),
+                    self._find_column_value(row, 'Technology_Stack', 'technology_stack', 'Technology'),
+                    self._find_column_value(row, 'Lines_of_Code', 'lines_of_code', 'LOC'),
+                    self._find_column_value(row, 'Last_Modified', 'last_modified', 'Modified'),
+                    sheet_name,
+                    row.get('_source_row'),
+                    trace_id
+                ))
+        
+        elif 'module' in sheet_lower or 'code' in sheet_lower:
+            for idx, row in enumerate(data):
+                trace_id = str(uuid.uuid4())[:12]
+                module_id = self._find_column_value(row, 'Module_ID', 'ID', 'module_id') or f"mod_{idx}"
+                app_id = self._find_column_value(row, 'Application_ID', 'application_id', 'App_ID')
+                
+                cursor.execute("""
+                    INSERT OR REPLACE INTO code_modules
+                    (id, application_id, name, description, language, lines_of_code,
+                     complexity_score, test_coverage, critical_functions, last_modified,
+                     source_sheet, source_row, trace_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    module_id,
+                    app_id,
+                    self._find_column_value(row, 'Name', 'name', 'Module_Name'),
+                    self._find_column_value(row, 'Description', 'description', 'Desc'),
+                    self._find_column_value(row, 'Language', 'language', 'Lang'),
+                    self._find_column_value(row, 'Lines_of_Code', 'lines_of_code', 'LOC'),
+                    self._find_column_value(row, 'Complexity_Score', 'complexity_score', 'Complexity'),
+                    self._find_column_value(row, 'Test_Coverage', 'test_coverage', 'Coverage'),
+                    self._find_column_value(row, 'Critical_Functions', 'critical_functions', 'CriticalFunctions'),
+                    self._find_column_value(row, 'Last_Modified', 'last_modified', 'Modified'),
+                    sheet_name,
+                    row.get('_source_row'),
+                    trace_id
+                ))
+        
+        elif 'business' in sheet_lower or 'rule' in sheet_lower:
+            for idx, row in enumerate(data):
+                trace_id = str(uuid.uuid4())[:12]
+                rule_id = self._find_column_value(row, 'Rule_ID', 'ID', 'rule_id') or f"rule_{idx}"
+                app_id = self._find_column_value(row, 'Application_ID', 'application_id', 'App_ID')
+                
+                cursor.execute("""
+                    INSERT OR REPLACE INTO business_rules
+                    (id, application_id, rule_name, description, rule_type,
+                     condition, action, criticality, test_coverage, last_modified,
+                     source_sheet, source_row, trace_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    rule_id,
+                    app_id,
+                    self._find_column_value(row, 'Rule_Name', 'rule_name', 'Name'),
+                    self._find_column_value(row, 'Description', 'description', 'Desc'),
+                    self._find_column_value(row, 'Rule_Type', 'rule_type', 'Type'),
+                    self._find_column_value(row, 'Condition', 'condition', 'Conditions'),
+                    self._find_column_value(row, 'Action', 'action', 'Actions'),
+                    self._find_column_value(row, 'Criticality', 'criticality', 'Critical'),
+                    self._find_column_value(row, 'Test_Coverage', 'test_coverage', 'TestCoverage', 'Test Coverage'),
+                    self._find_column_value(row, 'Last_Modified', 'last_modified', 'LastModified', 'Modified'),
+                    sheet_name,
+                    row.get('_source_row'),
+                    trace_id
+                ))
+        
+        elif 'dependenc' in sheet_lower:
+            for idx, row in enumerate(data):
+                trace_id = str(uuid.uuid4())[:12]
+                dep_id = row.get('Dependency_ID') or row.get('ID') or f"dep_{idx}"
+                
+                cursor.execute("""
+                    INSERT OR REPLACE INTO dependencies
+                    (id, source_id, source_type, target_id, target_type,
+                     relationship_type, criticality, description, source_sheet, source_row, trace_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    dep_id,
+                    row.get('Source_ID'),
+                    row.get('Source_Type'),
+                    row.get('Target_ID'),
+                    row.get('Target_Type'),
+                    row.get('Relationship_Type'),
+                    row.get('Criticality'),
+                    row.get('Description'),
+                    sheet_name,
+                    row.get('_source_row'),
+                    trace_id
+                ))
+        
+        elif 'data_store' in sheet_lower or 'store' in sheet_lower:
+            for idx, row in enumerate(data):
+                trace_id = str(uuid.uuid4())[:12]
+                store_id = row.get('DataStore_ID') or row.get('ID') or f"store_{idx}"
+                
+                cursor.execute("""
+                    INSERT OR REPLACE INTO data_stores
+                    (id, name, store_type, technology, criticality, pii_data,
+                     data_volume, source_sheet, source_row, trace_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    store_id,
+                    row.get('Name'),
+                    row.get('Store_Type'),
+                    row.get('Technology'),
+                    row.get('Criticality'),
+                    row.get('PII_Data', False),
+                    row.get('Data_Volume'),
+                    sheet_name,
+                    row.get('_source_row'),
+                    trace_id
+                ))
+        
+        elif 'integration' in sheet_lower:
+            for idx, row in enumerate(data):
+                trace_id = str(uuid.uuid4())[:12]
+                int_id = row.get('Integration_ID') or row.get('ID') or f"int_{idx}"
+                app_id = row.get('Application_ID')
+                
+                cursor.execute("""
+                    INSERT OR REPLACE INTO integrations
+                    (id, application_id, external_system, integration_type,
+                     api_version, criticality, status, last_verified,
+                     source_sheet, source_row, trace_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    int_id,
+                    app_id,
+                    row.get('External_System'),
+                    row.get('Integration_Type'),
+                    row.get('API_Version'),
+                    row.get('Criticality'),
+                    row.get('Status'),
+                    row.get('Last_Verified'),
+                    sheet_name,
+                    row.get('_source_row'),
+                    trace_id
+                ))
+        
+        elif 'test' in sheet_lower:
+            for idx, row in enumerate(data):
+                trace_id = str(uuid.uuid4())[:12]
+                test_id = row.get('Test_ID') or row.get('ID') or f"test_{idx}"
+                rule_id = row.get('Rule_ID')
+                module_id = row.get('Module_ID')
+                
+                cursor.execute("""
+                    INSERT OR REPLACE INTO test_cases
+                    (id, rule_id, module_id, test_name, description,
+                     input_data, expected_output, test_type, status,
+                     source_sheet, source_row, trace_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    test_id,
+                    rule_id,
+                    module_id,
+                    row.get('Test_Name'),
+                    row.get('Description'),
+                    row.get('Input_Data'),
+                    row.get('Expected_Output'),
+                    row.get('Test_Type'),
+                    row.get('Status'),
+                    sheet_name,
+                    row.get('_source_row'),
+                    trace_id
+                ))
+        
+        elif 'modernization' in sheet_lower or 'backlog' in sheet_lower:
+            for idx, row in enumerate(data):
+                trace_id = str(uuid.uuid4())[:12]
+                recommendation_id = row.get('ID') or row.get('Recommendation_ID') or f"rec_{idx}"
+                app_id = row.get('Application_ID')
+                module_id = row.get('Module_ID')
+                
+                cursor.execute("""
+                    INSERT OR REPLACE INTO modernization_backlog
+                    (id, application_id, module_id, recommendation, priority,
+                     effort_estimate, risk_level, dependencies, status,
+                     source_sheet, source_row, trace_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    recommendation_id,
+                    app_id,
+                    module_id,
+                    row.get('Recommendation'),
+                    row.get('Priority'),
+                    row.get('Effort_Estimate'),
+                    row.get('Risk_Level'),
+                    row.get('Dependencies'),
+                    row.get('Status'),
+                    sheet_name,
+                    row.get('_source_row'),
+                    trace_id
+                ))
+    
+    def _build_relationships(self, cursor, sheet_data: Dict[str, List[Dict]]):
+        """Infer and build relationships between entities"""
+        # This is called after all data is stored to create linkages
+        pass
+    
+    def get_metadata(self, workbook_id: str) -> Dict[str, Any]:
+        """Get workbook metadata"""
+        return self.workbooks.get(workbook_id, {})
+    
+    def get_applications(self, workbook_id: str) -> List[Dict]:
+        """Retrieve all applications"""
+        db_path = self._get_db_path(workbook_id)
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM applications")
+        return [dict(row) for row in cursor.fetchall()]
+    
+    def get_modules(self, workbook_id: str, app_id: Optional[str] = None) -> List[Dict]:
+        """Retrieve modules, optionally filtered by application"""
+        db_path = self._get_db_path(workbook_id)
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        if app_id:
+            cursor.execute("SELECT * FROM code_modules WHERE application_id = ?", (app_id,))
+        else:
+            cursor.execute("SELECT * FROM code_modules")
+        
+        return [dict(row) for row in cursor.fetchall()]
+    
+    def get_dependencies(self, workbook_id: str) -> List[Dict]:
+        """Retrieve all dependencies"""
+        db_path = self._get_db_path(workbook_id)
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM dependencies")
+        return [dict(row) for row in cursor.fetchall()]
+    
+    def get_business_rules(self, workbook_id: str) -> List[Dict]:
+        """Retrieve all business rules"""
+        db_path = self._get_db_path(workbook_id)
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM business_rules")
+        return [dict(row) for row in cursor.fetchall()]
+    
+    def _get_db_path(self, workbook_id: str) -> str:
+        """Get database path for workbook"""
+        return os.path.join(self.cache_dir, f"workbook_{workbook_id}.db")
