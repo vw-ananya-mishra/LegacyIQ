@@ -423,7 +423,13 @@ class XLSXIngestionService:
         elif 'dependenc' in sheet_lower:
             for idx, row in enumerate(data):
                 trace_id = str(uuid.uuid4())[:12]
-                dep_id = row.get('Dependency_ID') or row.get('ID') or f"dep_{idx}"
+                dep_id = self._find_column_value(row, 'Dependency_ID', 'ID', 'dependency_id') or f"dep_{idx}"
+                source_id = self._find_column_value(row, 'Source_ID', 'source_id', 'SourceID')
+                target_id = self._find_column_value(row, 'Target_ID', 'target_id', 'TargetID')
+                
+                # Skip if source or target is None
+                if source_id is None or target_id is None:
+                    continue
                 
                 cursor.execute("""
                     INSERT OR REPLACE INTO dependencies
@@ -432,13 +438,13 @@ class XLSXIngestionService:
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     dep_id,
-                    row.get('Source_ID'),
-                    row.get('Source_Type'),
-                    row.get('Target_ID'),
-                    row.get('Target_Type'),
-                    row.get('Relationship_Type'),
-                    row.get('Criticality'),
-                    row.get('Description'),
+                    source_id,
+                    self._find_column_value(row, 'Source_Type', 'source_type'),
+                    target_id,
+                    self._find_column_value(row, 'Target_Type', 'target_type'),
+                    self._find_column_value(row, 'Relationship_Type', 'relationship_type'),
+                    self._find_column_value(row, 'Criticality', 'criticality'),
+                    self._find_column_value(row, 'Description', 'description'),
                     sheet_name,
                     row.get('_source_row'),
                     trace_id

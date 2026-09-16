@@ -88,13 +88,14 @@ export default function UnderstandPage({ workbook }: { workbook: Workbook }) {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {applications.map((app: any) => (
-                    <div key={app.application_id || `app-${app.id}`} className="bg-slate-800 p-4 rounded-lg border border-slate-700">
-                      <h3 className="font-bold text-slate-50 mb-2">{app.application_name}</h3>
-                      <p className="text-slate-400 text-sm mb-3">{app.description}</p>
+                    <div key={app.id || `app-${app.application_id}`} className="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                      <h3 className="font-bold text-slate-50 mb-2">{app.name}</h3>
+                      <p className="text-slate-400 text-sm mb-3">{app.description || 'No description'}</p>
                       <div className="text-xs text-slate-500 space-y-1">
-                        <p>Technology: {app.primary_technology}</p>
-                        <p>Type: {app.application_type}</p>
-                        <p>Status: {app.current_status}</p>
+                        <p>Technology: {app.technology_stack || 'N/A'}</p>
+                        <p>Status: {app.status || 'Unknown'}</p>
+                        <p>Criticality: {app.criticality || 'N/A'}</p>
+                        <p>LOC: {app.lines_of_code || 0}</p>
                       </div>
                     </div>
                   ))}
@@ -115,28 +116,28 @@ export default function UnderstandPage({ workbook }: { workbook: Workbook }) {
                     <thead>
                       <tr className="border-b border-slate-700">
                         <th className="text-left py-2 px-4">Module Name</th>
-                        <th className="text-left py-2 px-4">Application</th>
                         <th className="text-left py-2 px-4">Language</th>
                         <th className="text-left py-2 px-4">Lines of Code</th>
                         <th className="text-left py-2 px-4">Complexity</th>
+                        <th className="text-left py-2 px-4">Test Coverage</th>
                       </tr>
                     </thead>
                     <tbody>
                       {modules.slice(0, 20).map((mod: any) => (
-                        <tr key={mod.module_id || `mod-${mod.id}`} className="border-b border-slate-800 hover:bg-slate-800">
-                          <td className="py-2 px-4">{mod.module_name}</td>
-                          <td className="py-2 px-4 text-slate-400">{mod.application_name}</td>
-                          <td className="py-2 px-4">{mod.language}</td>
-                          <td className="py-2 px-4">{mod.lines_of_code}</td>
+                        <tr key={mod.id || `mod-${mod.module_id}`} className="border-b border-slate-800 hover:bg-slate-800">
+                          <td className="py-2 px-4">{mod.name || 'Unknown'}</td>
+                          <td className="py-2 px-4">{mod.language || 'N/A'}</td>
+                          <td className="py-2 px-4">{mod.lines_of_code || 0}</td>
                           <td className="py-2 px-4">
                             <span className={`px-2 py-1 rounded text-xs ${
-                              mod.complexity === 'HIGH' ? 'bg-red-900/30 text-red-300' :
-                              mod.complexity === 'MEDIUM' ? 'bg-yellow-900/30 text-yellow-300' :
+                              (mod.complexity_score || 0) > 8 ? 'bg-red-900/30 text-red-300' :
+                              (mod.complexity_score || 0) > 5 ? 'bg-yellow-900/30 text-yellow-300' :
                               'bg-green-900/30 text-green-300'
                             }`}>
-                              {mod.complexity}
+                              {mod.complexity_score || 0}
                             </span>
                           </td>
+                          <td className="py-2 px-4">{mod.test_coverage ? `${mod.test_coverage}%` : 'N/A'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -156,16 +157,25 @@ export default function UnderstandPage({ workbook }: { workbook: Workbook }) {
               ) : (
                 <div className="space-y-3">
                   {businessRules.slice(0, 20).map((rule: any) => (
-                    <div key={rule.rule_id || `rule-${rule.id}`} className="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                    <div key={rule.id || `rule-${rule.rule_id}`} className="bg-slate-800 p-4 rounded-lg border border-slate-700">
                       <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-bold text-slate-50">{rule.rule_name}</h3>
-                        <span className="text-xs bg-cyan-900/30 text-cyan-300 px-2 py-1 rounded">
-                          {rule.rule_type}
+                        <div>
+                          <h3 className="font-bold text-slate-50">{rule.rule_name}</h3>
+                          <p className="text-slate-400 text-xs mt-1">ID: {rule.id}</p>
+                        </div>
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          rule.rule_type === 'Compliance' ? 'bg-blue-900/30 text-blue-300' :
+                          rule.rule_type === 'Validation' ? 'bg-green-900/30 text-green-300' :
+                          'bg-cyan-900/30 text-cyan-300'
+                        }`}>
+                          {rule.rule_type || 'Unknown'}
                         </span>
                       </div>
-                      <p className="text-slate-400 text-sm mb-2">{rule.description}</p>
-                      <div className="text-xs text-slate-500">
-                        Test Coverage: {rule.test_coverage ? '✓ Yes' : '✗ No'} | Complexity: {rule.complexity}
+                      <p className="text-slate-400 text-sm mb-2">{rule.description || 'No description'}</p>
+                      <div className="text-xs text-slate-500 space-y-1">
+                        <p>Condition: {rule.condition || 'N/A'}</p>
+                        <p>Action: {rule.action || 'N/A'}</p>
+                        <p>Criticality: {rule.criticality || 'N/A'} | Test Coverage: {rule.test_coverage || 'None'}</p>
                       </div>
                     </div>
                   ))}

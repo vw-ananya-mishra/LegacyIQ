@@ -151,7 +151,7 @@ async def get_modules(workbook_id: str, app_id: Optional[str] = None):
     """Get modules, optionally filtered by application"""
     try:
         modules = ingestion_service.get_modules(workbook_id, app_id)
-        return {"modules": modules}
+        return {"code_modules": modules, "modules": modules}
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 

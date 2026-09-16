@@ -38,12 +38,15 @@ class AnalysisEngine:
         cursor.execute("SELECT * FROM dependencies")
         deps = [dict(row) for row in cursor.fetchall()]
         
-        # Build NetworkX graph
+        # Build NetworkX graph (filter out None values)
         G = nx.DiGraph()
         
         for dep in deps:
             source = dep['source_id']
             target = dep['target_id']
+            # Skip if source or target is None
+            if source is None or target is None:
+                continue
             G.add_edge(source, target, 
                       relationship=dep['relationship_type'],
                       criticality=dep['criticality'])
@@ -467,7 +470,7 @@ class AgentOrchestrator:
         return findings, evidence
     
     def parity_engineer_generate(self, workbook_id: str, context: Dict) -> Tuple[Dict, Dict]:
-        """Generate parity tests from business rules"""
+        """Generate parity tests from business rules and test cases"""
         from app.services.xlsx_ingestion import XLSXIngestionService
         svc = XLSXIngestionService()
         
@@ -476,20 +479,32 @@ class AgentOrchestrator:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         
-        cursor.execute("SELECT * FROM business_rules LIMIT 10")
+        # Fetch test cases
+        cursor.execute("SELECT * FROM test_cases")
+        test_cases = [dict(row) for row in cursor.fetchall()]
+        
+        # Fetch business rules for context
+        cursor.execute("SELECT * FROM business_rules")
         rules = [dict(row) for row in cursor.fetchall()]
         
         tests = []
-        for rule in rules:
+        for idx, test in enumerate(test_cases):
+            # Find the rule for this test
+            rule = next((r for r in rules if r['id'] == test.get('rule_id')), None)
+            
             tests.append({
-                "rule_id": rule['id'],
-                "rule": rule['rule_name'],
-                "input": rule.get('condition', 'N/A'),
-                "expected_output": rule.get('action', 'N/A'),
+                "test_id": test.get('id', f"test_{idx}"),
+                "test_name": test.get('test_name', f"Test_{idx}"),
+                "rule_id": test.get('rule_id', 'N/A'),
+                "module_id": test.get('module_id', 'N/A'),
+                "description": test.get('description', 'No description'),
+                "input_data": test.get('input_data', 'N/A'),
+                "expected_output": test.get('expected_output', 'N/A'),
+                "test_type": test.get('test_type', 'unit'),
+                "status": test.get('status', 'pending'),
                 "legacy_result": "pending",
                 "modern_result": "pending",
-                "status": "pending_execution",
-                "source_rule": rule
+                "parity_status": "pending_execution"
             })
         
         findings = {
@@ -501,58 +516,73 @@ class AgentOrchestrator:
         
         evidence = {
             "evidence_list": [
-                {"source_sheet": "Business_Rules", "record_count": len(rules), "type": "rules"},
-                {"source_sheet": "Test_Cases", "type": "test_definitions"}
+                {"source_sheet": "Test_Cases", "record_count": len(test_cases), "type": "tests"},
+                {"source_sheet": "Business_Rules", "record_count": len(rules), "type": "rules"}
             ],
-            "confidence": 0.8,
+            "confidence": 0.85,
             "trace": [
                 {"level": "generation", "type": "parity_tests"},
-                {"level": "source", "sheet": "Business_Rules", "records": len(rules)}
+                {"level": "source", "sheet": "Test_Cases", "records": len(test_cases)}
             ]
         }
         
         return findings, evidence
     
     def modernization_strategist_recommend(self, workbook_id: str, context: Dict) -> Tuple[Dict, Dict]:
-        """Generate modernization recommendations"""
+        """Generate modernization recommendations from backlog"""
         from app.services.xlsx_ingestion import XLSXIngestionService
         svc = XLSXIngestionService()
         analysis = AnalysisEngine()
         
+        db_path = svc._get_db_path(workbook_id)
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Fetch modernization backlog recommendations
+        cursor.execute("SELECT * FROM modernization_backlog")
+        backlog_items = [dict(row) for row in cursor.fetchall()]
+        
+        # Fetch risks for context
         risks = analysis.identify_risks(workbook_id)
-        dashboard = analysis.generate_dashboard_summary(workbook_id)
         
         recommendations = []
-        priority_map = {"critical": 1, "high": 2, "medium": 3, "low": 4}
+        priority_map = {"low": 1, "medium": 2, "high": 3, "critical": 4}
         
-        for idx, risk in enumerate(risks[:5]):
-            rec_id = f"rec_{idx+1}"
+        for idx, item in enumerate(backlog_items):
+            priority = item.get('priority', 'medium')
+            priority_num = priority_map.get(str(priority).lower(), 2)
+            
             recommendations.append({
-                "id": rec_id,
-                "recommendation": f"Address {risk['risk_type']}: {risk['risk_description']}",
-                "reason": risk['remediation'],
-                "evidence": [risk],
-                "risk": risk['severity'],
-                "continuity_impact": "medium",
-                "effort": "medium",
-                "dependencies": [],
-                "status": "draft",
-                "priority": priority_map.get(risk['severity'], 4)
+                "id": item.get('id', f"rec_{idx+1}"),
+                "recommendation": item.get('recommendation', 'Modernization recommendation'),
+                "priority": priority,
+                "priority_level": priority_num,
+                "application_id": item.get('application_id'),
+                "module_id": item.get('module_id'),
+                "effort_estimate": item.get('effort_estimate', 'unknown'),
+                "risk_level": item.get('risk_level', 'medium'),
+                "dependencies": item.get('dependencies', '').split(',') if item.get('dependencies') else [],
+                "status": item.get('status', 'draft'),
+                "strategy": f"Execute {item.get('recommendation', 'recommendation').lower()}",
+                "effort": item.get('effort_estimate', 'medium')
             })
         
         findings = {
             "recommendations": recommendations,
             "roadmap": ["Protect", "Understand", "Isolate", "Migrate", "Retire"],
+            "total_recommendations": len(recommendations),
             "statistics": {
                 "total_risks": len(risks),
                 "critical_risks": len([r for r in risks if r['severity'] == 'critical']),
-                "high_risks": len([r for r in risks if r['severity'] == 'high'])
+                "high_risks": len([r for r in risks if r['severity'] == 'high']),
+                "modernization_items": len(backlog_items)
             }
         }
         
         evidence = {
             "evidence_list": [
-                {"source_sheet": "Modernization_Backlog", "type": "backlog_items"},
+                {"source_sheet": "Modernization_Backlog", "record_count": len(backlog_items), "type": "backlog_items"},
                 {"type": "risk_analysis", "count": len(risks)}
             ],
             "confidence": 0.75,

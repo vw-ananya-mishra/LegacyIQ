@@ -35,15 +35,33 @@ export default function ParityLabPage({ workbook }: { workbook: Workbook }) {
         { context: 'Generate parity tests from business rules' }
       );
       
-      // Simulate test results
-      const mockResults = businessRules.map((rule, index) => ({
-        id: rule.rule_id,
-        name: rule.rule_name,
-        status: Math.random() > 0.3 ? 'pass' : Math.random() > 0.5 ? 'fail' : 'mismatch',
-        duration: Math.floor(Math.random() * 5000) + 100,
-        output: result?.summary || 'Test executed successfully'
-      }));
-      setTestResults(mockResults);
+      // Use actual test data from API response
+      if (result?.findings?.tests && Array.isArray(result.findings.tests)) {
+        const testsFromAPI = result.findings.tests.map((test: any) => ({
+          id: test.test_id || test.rule_id,
+          name: test.test_name || test.rule || 'Test',
+          rule_id: test.rule_id,
+          module_id: test.module_id,
+          description: test.description,
+          test_type: test.test_type || 'unit',
+          status: test.parity_status || test.status || 'pending',
+          legacy_result: test.legacy_result || 'pending',
+          modern_result: test.modern_result || 'pending',
+          expected_output: test.expected_output,
+          input_data: test.input_data
+        }));
+        setTestResults(testsFromAPI);
+      } else {
+        // Fallback: mock results based on rules
+        const mockResults = businessRules.slice(0, 10).map((rule, index) => ({
+          id: rule.id || `rule_${index}`,
+          name: rule.rule_name || `Rule ${index + 1}`,
+          status: 'pending',
+          duration: Math.floor(Math.random() * 5000) + 100,
+          output: 'Test ready for execution'
+        }));
+        setTestResults(mockResults);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate tests');
     } finally {

@@ -35,17 +35,35 @@ export default function ModernizationPage({ workbook }: { workbook: Workbook }) 
         { include_risks: true, include_dependencies: true }
       );
 
-      // Mock recommendations based on risks
-      const mockRecommendations = risks.slice(0, 5).map((risk, index) => ({
-        id: `rec-${index}`,
-        title: `Modernize ${risk.component}`,
-        priority: ['CRITICAL', 'HIGH', 'MEDIUM'][Math.floor(Math.random() * 3)],
-        strategy: ['Rehost', 'Replatform', 'Refactor', 'Re-architect'][Math.floor(Math.random() * 4)],
-        effort: Math.floor(Math.random() * 100) + 20,
-        riskReduction: Math.floor(Math.random() * 50) + 50,
-        description: result?.summary || 'Evidence-based modernization recommendation with detailed risk analysis'
-      }));
-      setRecommendations(mockRecommendations);
+      // Use actual recommendations from API response
+      if (result?.findings?.recommendations && Array.isArray(result.findings.recommendations)) {
+        const recsFromAPI = result.findings.recommendations.map((rec: any) => ({
+          id: rec.id,
+          title: rec.recommendation || rec.title,
+          priority: rec.priority || rec.priority_level || 'MEDIUM',
+          strategy: rec.strategy || 'Modernize',
+          effort: rec.effort_estimate || rec.effort || 'Medium',
+          riskLevel: rec.risk_level || 'Medium',
+          dependencies: Array.isArray(rec.dependencies) ? rec.dependencies.join(', ') : rec.dependencies || 'None',
+          status: rec.status || 'draft',
+          applicationId: rec.application_id,
+          moduleId: rec.module_id,
+          description: rec.recommendation || 'Modernization recommendation based on backlog analysis'
+        }));
+        setRecommendations(recsFromAPI);
+      } else {
+        // Fallback: mock recommendations
+        const mockRecommendations = risks.slice(0, 5).map((risk, index) => ({
+          id: `rec-${index}`,
+          title: `Address ${risk.risk_description || 'Risk'}`,
+          priority: risk.severity || 'MEDIUM',
+          strategy: 'Modernize',
+          effort: 'Medium',
+          riskLevel: risk.severity || 'Medium',
+          description: risk.remediation || 'Evidence-based recommendation'
+        }));
+        setRecommendations(mockRecommendations);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate recommendations');
     } finally {
