@@ -126,13 +126,14 @@ class XLSXIngestionService:
             CREATE TABLE IF NOT EXISTS applications (
                 id TEXT PRIMARY KEY,
                 name TEXT,
-                description TEXT,
-                status TEXT,
+                primary_language TEXT,
+                platform TEXT,
+                business_domain TEXT,
                 criticality TEXT,
-                complexity TEXT,
-                technology_stack TEXT,
-                lines_of_code INTEGER,
-                last_modified TEXT,
+                annual_maint_cost_eur REAL,
+                last_deployed TEXT,
+                owner TEXT,
+                doc_coverage_pct REAL,
                 source_sheet TEXT,
                 source_row INTEGER,
                 trace_id TEXT
@@ -145,13 +146,14 @@ class XLSXIngestionService:
                 id TEXT PRIMARY KEY,
                 application_id TEXT,
                 name TEXT,
-                description TEXT,
-                language TEXT,
+                module_type TEXT,
                 lines_of_code INTEGER,
                 complexity_score REAL,
-                test_coverage REAL,
-                critical_functions INTEGER,
-                last_modified TEXT,
+                last_changed TEXT,
+                last_change_author TEXT,
+                is_dead_code TEXT,
+                has_unit_tests TEXT,
+                description_present TEXT,
                 source_sheet TEXT,
                 source_row INTEGER,
                 trace_id TEXT,
@@ -163,19 +165,17 @@ class XLSXIngestionService:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS business_rules (
                 id TEXT PRIMARY KEY,
-                application_id TEXT,
+                module_id TEXT,
                 rule_name TEXT,
-                description TEXT,
-                rule_type TEXT,
-                condition TEXT,
-                action TEXT,
+                business_domain TEXT,
                 criticality TEXT,
-                test_coverage TEXT,
-                last_modified TEXT,
+                extraction_confidence REAL,
+                duplicate_of TEXT,
+                has_test_case TEXT,
                 source_sheet TEXT,
                 source_row INTEGER,
                 trace_id TEXT,
-                FOREIGN KEY(application_id) REFERENCES applications(id)
+                FOREIGN KEY(module_id) REFERENCES code_modules(id)
             )
         """)
         
@@ -189,7 +189,6 @@ class XLSXIngestionService:
                 target_type TEXT,
                 relationship_type TEXT,
                 criticality TEXT,
-                description TEXT,
                 source_sheet TEXT,
                 source_row INTEGER,
                 trace_id TEXT
@@ -202,9 +201,9 @@ class XLSXIngestionService:
                 id TEXT PRIMARY KEY,
                 name TEXT,
                 store_type TEXT,
-                technology TEXT,
-                criticality TEXT,
-                pii_data BOOLEAN,
+                application_id TEXT,
+                classification TEXT,
+                pii_data TEXT,
                 data_volume TEXT,
                 source_sheet TEXT,
                 source_row INTEGER,
@@ -217,9 +216,11 @@ class XLSXIngestionService:
             CREATE TABLE IF NOT EXISTS integrations (
                 id TEXT PRIMARY KEY,
                 application_id TEXT,
-                external_system TEXT,
+                interface_name TEXT,
                 integration_type TEXT,
-                api_version TEXT,
+                direction TEXT,
+                protocol TEXT,
+                downstream_target TEXT,
                 criticality TEXT,
                 status TEXT,
                 last_verified TEXT,
@@ -237,11 +238,11 @@ class XLSXIngestionService:
                 rule_id TEXT,
                 module_id TEXT,
                 test_name TEXT,
-                description TEXT,
-                input_data TEXT,
-                expected_output TEXT,
                 test_type TEXT,
+                expected_output TEXT,
+                legacy_result TEXT,
                 status TEXT,
+                last_run TEXT,
                 source_sheet TEXT,
                 source_row INTEGER,
                 trace_id TEXT
@@ -274,8 +275,26 @@ class XLSXIngestionService:
                 priority TEXT,
                 effort_estimate TEXT,
                 risk_level TEXT,
-                dependencies TEXT,
+                preserves_continuity TEXT,
+                target_tech TEXT,
                 status TEXT,
+                source_sheet TEXT,
+                source_row INTEGER,
+                trace_id TEXT,
+                FOREIGN KEY(application_id) REFERENCES applications(id)
+            )
+        """)
+        
+        # Documentation Artifacts table (tribal knowledge, runbooks, design docs)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS documentation_artifacts (
+                id TEXT PRIMARY KEY,
+                application_id TEXT,
+                doc_type TEXT,
+                doc_title TEXT,
+                last_updated TEXT,
+                author TEXT,
+                excerpt TEXT,
                 source_sheet TEXT,
                 source_row INTEGER,
                 trace_id TEXT,
@@ -341,24 +360,25 @@ class XLSXIngestionService:
         if 'application' in sheet_lower:
             for idx, row in enumerate(data):
                 trace_id = str(uuid.uuid4())[:12]
-                app_id = self._find_column_value(row, 'Application_ID', 'ID', 'application_id') or f"app_{idx}"
+                app_id = self._find_column_value(row, 'app_id', 'Application_ID', 'ID') or f"app_{idx}"
                 
                 cursor.execute("""
                     INSERT OR REPLACE INTO applications 
-                    (id, name, description, status, criticality, complexity, 
-                     technology_stack, lines_of_code, last_modified, source_sheet, 
-                     source_row, trace_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (id, name, primary_language, platform, business_domain, criticality,
+                     annual_maint_cost_eur, last_deployed, owner, doc_coverage_pct,
+                     source_sheet, source_row, trace_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     app_id,
-                    self._find_column_value(row, 'Name', 'name', 'Application_Name'),
-                    self._find_column_value(row, 'Description', 'description', 'Desc'),
-                    self._find_column_value(row, 'Status', 'status'),
-                    self._find_column_value(row, 'Criticality', 'criticality', 'Critical'),
-                    self._find_column_value(row, 'Complexity', 'complexity', 'Complexity_Score'),
-                    self._find_column_value(row, 'Technology_Stack', 'technology_stack', 'Technology'),
-                    self._find_column_value(row, 'Lines_of_Code', 'lines_of_code', 'LOC'),
-                    self._find_column_value(row, 'Last_Modified', 'last_modified', 'Modified'),
+                    self._find_column_value(row, 'app_name', 'Name', 'Application_Name'),
+                    self._find_column_value(row, 'primary_language', 'Language'),
+                    self._find_column_value(row, 'platform', 'Platform'),
+                    self._find_column_value(row, 'business_domain', 'Business_Domain'),
+                    self._find_column_value(row, 'criticality', 'Criticality'),
+                    self._find_column_value(row, 'annual_maint_cost_eur', 'Annual_Maint_Cost_EUR'),
+                    self._find_column_value(row, 'last_deployed', 'Last_Deployed', 'Last_Modified'),
+                    self._find_column_value(row, 'owner', 'Owner'),
+                    self._find_column_value(row, 'doc_coverage_pct', 'Doc_Coverage_Pct'),
                     sheet_name,
                     row.get('_source_row'),
                     trace_id
@@ -367,26 +387,28 @@ class XLSXIngestionService:
         elif 'module' in sheet_lower or 'code' in sheet_lower:
             for idx, row in enumerate(data):
                 trace_id = str(uuid.uuid4())[:12]
-                module_id = self._find_column_value(row, 'Module_ID', 'ID', 'module_id') or f"mod_{idx}"
-                app_id = self._find_column_value(row, 'Application_ID', 'application_id', 'App_ID')
+                module_id = self._find_column_value(row, 'module_id', 'Module_ID', 'ID') or f"mod_{idx}"
+                app_id = self._find_column_value(row, 'app_id', 'Application_ID', 'application_id')
                 
                 cursor.execute("""
                     INSERT OR REPLACE INTO code_modules
-                    (id, application_id, name, description, language, lines_of_code,
-                     complexity_score, test_coverage, critical_functions, last_modified,
+                    (id, application_id, name, module_type, lines_of_code,
+                     complexity_score, last_changed, last_change_author,
+                     is_dead_code, has_unit_tests, description_present,
                      source_sheet, source_row, trace_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     module_id,
                     app_id,
-                    self._find_column_value(row, 'Name', 'name', 'Module_Name'),
-                    self._find_column_value(row, 'Description', 'description', 'Desc'),
-                    self._find_column_value(row, 'Language', 'language', 'Lang'),
-                    self._find_column_value(row, 'Lines_of_Code', 'lines_of_code', 'LOC'),
-                    self._find_column_value(row, 'Complexity_Score', 'complexity_score', 'Complexity'),
-                    self._find_column_value(row, 'Test_Coverage', 'test_coverage', 'Coverage'),
-                    self._find_column_value(row, 'Critical_Functions', 'critical_functions', 'CriticalFunctions'),
-                    self._find_column_value(row, 'Last_Modified', 'last_modified', 'Modified'),
+                    self._find_column_value(row, 'module_name', 'Name', 'Module_Name'),
+                    self._find_column_value(row, 'module_type', 'Module_Type'),
+                    self._find_column_value(row, 'lines_of_code', 'Lines_of_Code', 'LOC'),
+                    self._find_column_value(row, 'cyclomatic_complexity', 'Complexity_Score', 'Complexity'),
+                    self._find_column_value(row, 'last_changed', 'Last_Modified', 'Modified'),
+                    self._find_column_value(row, 'last_change_author', 'Last_Change_Author'),
+                    self._find_column_value(row, 'is_dead_code', 'Is_Dead_Code'),
+                    self._find_column_value(row, 'has_unit_tests', 'Has_Unit_Tests'),
+                    self._find_column_value(row, 'description_present', 'Description_Present'),
                     sheet_name,
                     row.get('_source_row'),
                     trace_id
@@ -395,26 +417,24 @@ class XLSXIngestionService:
         elif 'business' in sheet_lower or 'rule' in sheet_lower:
             for idx, row in enumerate(data):
                 trace_id = str(uuid.uuid4())[:12]
-                rule_id = self._find_column_value(row, 'Rule_ID', 'ID', 'rule_id') or f"rule_{idx}"
-                app_id = self._find_column_value(row, 'Application_ID', 'application_id', 'App_ID')
+                rule_id = self._find_column_value(row, 'rule_id', 'Rule_ID', 'ID') or f"rule_{idx}"
+                module_id = self._find_column_value(row, 'module_id', 'Module_ID')
                 
                 cursor.execute("""
                     INSERT OR REPLACE INTO business_rules
-                    (id, application_id, rule_name, description, rule_type,
-                     condition, action, criticality, test_coverage, last_modified,
+                    (id, module_id, rule_name, business_domain, criticality,
+                     extraction_confidence, duplicate_of, has_test_case,
                      source_sheet, source_row, trace_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     rule_id,
-                    app_id,
-                    self._find_column_value(row, 'Rule_Name', 'rule_name', 'Name'),
-                    self._find_column_value(row, 'Description', 'description', 'Desc'),
-                    self._find_column_value(row, 'Rule_Type', 'rule_type', 'Type'),
-                    self._find_column_value(row, 'Condition', 'condition', 'Conditions'),
-                    self._find_column_value(row, 'Action', 'action', 'Actions'),
-                    self._find_column_value(row, 'Criticality', 'criticality', 'Critical'),
-                    self._find_column_value(row, 'Test_Coverage', 'test_coverage', 'TestCoverage', 'Test Coverage'),
-                    self._find_column_value(row, 'Last_Modified', 'last_modified', 'LastModified', 'Modified'),
+                    module_id,
+                    self._find_column_value(row, 'rule_summary', 'Rule_Name', 'Name'),
+                    self._find_column_value(row, 'business_domain', 'Business_Domain'),
+                    self._find_column_value(row, 'criticality', 'Criticality'),
+                    self._find_column_value(row, 'extraction_confidence', 'Extraction_Confidence'),
+                    self._find_column_value(row, 'duplicate_of', 'Duplicate_Of'),
+                    self._find_column_value(row, 'has_test_case', 'Has_Test_Case'),
                     sheet_name,
                     row.get('_source_row'),
                     trace_id
@@ -423,28 +443,30 @@ class XLSXIngestionService:
         elif 'dependenc' in sheet_lower:
             for idx, row in enumerate(data):
                 trace_id = str(uuid.uuid4())[:12]
-                dep_id = self._find_column_value(row, 'Dependency_ID', 'ID', 'dependency_id') or f"dep_{idx}"
-                source_id = self._find_column_value(row, 'Source_ID', 'source_id', 'SourceID')
-                target_id = self._find_column_value(row, 'Target_ID', 'target_id', 'TargetID')
+                dep_id = self._find_column_value(row, 'dependency_id', 'Dependency_ID', 'ID') or f"dep_{idx}"
+                source_id = self._find_column_value(row, 'source_module_id', 'Source_ID', 'source_id')
+                target_id = self._find_column_value(row, 'target_id', 'Target_ID')
                 
                 # Skip if source or target is None
                 if source_id is None or target_id is None:
                     continue
                 
+                is_runtime_critical = self._find_column_value(row, 'is_runtime_critical', 'Is_Runtime_Critical')
+                criticality = 'critical' if str(is_runtime_critical).strip().upper() == 'Y' else 'medium'
+                
                 cursor.execute("""
                     INSERT OR REPLACE INTO dependencies
                     (id, source_id, source_type, target_id, target_type,
-                     relationship_type, criticality, description, source_sheet, source_row, trace_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     relationship_type, criticality, source_sheet, source_row, trace_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     dep_id,
                     source_id,
-                    self._find_column_value(row, 'Source_Type', 'source_type'),
+                    'module',
                     target_id,
-                    self._find_column_value(row, 'Target_Type', 'target_type'),
-                    self._find_column_value(row, 'Relationship_Type', 'relationship_type'),
-                    self._find_column_value(row, 'Criticality', 'criticality'),
-                    self._find_column_value(row, 'Description', 'description'),
+                    str(self._find_column_value(row, 'target_type', 'Target_Type') or 'unknown').strip().lower().replace(' ', '_'),
+                    self._find_column_value(row, 'dependency_kind', 'Relationship_Type'),
+                    criticality,
                     sheet_name,
                     row.get('_source_row'),
                     trace_id
@@ -453,21 +475,21 @@ class XLSXIngestionService:
         elif 'data_store' in sheet_lower or 'store' in sheet_lower:
             for idx, row in enumerate(data):
                 trace_id = str(uuid.uuid4())[:12]
-                store_id = row.get('DataStore_ID') or row.get('ID') or f"store_{idx}"
+                store_id = self._find_column_value(row, 'store_id', 'DataStore_ID', 'ID') or f"store_{idx}"
                 
                 cursor.execute("""
                     INSERT OR REPLACE INTO data_stores
-                    (id, name, store_type, technology, criticality, pii_data,
+                    (id, name, store_type, application_id, classification, pii_data,
                      data_volume, source_sheet, source_row, trace_id)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     store_id,
-                    row.get('Name'),
-                    row.get('Store_Type'),
-                    row.get('Technology'),
-                    row.get('Criticality'),
-                    row.get('PII_Data', False),
-                    row.get('Data_Volume'),
+                    self._find_column_value(row, 'store_name', 'Name'),
+                    self._find_column_value(row, 'store_type', 'Store_Type'),
+                    self._find_column_value(row, 'owning_app_id', 'Application_ID'),
+                    self._find_column_value(row, 'classification', 'Classification'),
+                    self._find_column_value(row, 'pii_present', 'PII_Data'),
+                    self._find_column_value(row, 'record_count_est', 'Data_Volume'),
                     sheet_name,
                     row.get('_source_row'),
                     trace_id
@@ -476,24 +498,26 @@ class XLSXIngestionService:
         elif 'integration' in sheet_lower:
             for idx, row in enumerate(data):
                 trace_id = str(uuid.uuid4())[:12]
-                int_id = row.get('Integration_ID') or row.get('ID') or f"int_{idx}"
-                app_id = row.get('Application_ID')
+                int_id = self._find_column_value(row, 'integration_id', 'Integration_ID', 'ID') or f"int_{idx}"
+                app_id = self._find_column_value(row, 'app_id', 'Application_ID')
                 
                 cursor.execute("""
                     INSERT OR REPLACE INTO integrations
-                    (id, application_id, external_system, integration_type,
-                     api_version, criticality, status, last_verified,
+                    (id, application_id, interface_name, integration_type, direction,
+                     protocol, downstream_target, criticality, status, last_verified,
                      source_sheet, source_row, trace_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     int_id,
                     app_id,
-                    row.get('External_System'),
-                    row.get('Integration_Type'),
-                    row.get('API_Version'),
-                    row.get('Criticality'),
-                    row.get('Status'),
-                    row.get('Last_Verified'),
+                    self._find_column_value(row, 'interface_name', 'External_System'),
+                    self._find_column_value(row, 'integration_type', 'Integration_Type'),
+                    self._find_column_value(row, 'direction', 'Direction'),
+                    self._find_column_value(row, 'protocol', 'Protocol'),
+                    self._find_column_value(row, 'downstream_target', 'Downstream_Target'),
+                    self._find_column_value(row, 'criticality', 'Criticality'),
+                    self._find_column_value(row, 'status', 'Status'),
+                    self._find_column_value(row, 'last_verified', 'Last_Verified'),
                     sheet_name,
                     row.get('_source_row'),
                     trace_id
@@ -502,26 +526,30 @@ class XLSXIngestionService:
         elif 'test' in sheet_lower:
             for idx, row in enumerate(data):
                 trace_id = str(uuid.uuid4())[:12]
-                test_id = row.get('Test_ID') or row.get('ID') or f"test_{idx}"
-                rule_id = row.get('Rule_ID')
-                module_id = row.get('Module_ID')
+                test_id = self._find_column_value(row, 'test_id', 'Test_ID', 'ID') or f"test_{idx}"
+                rule_id = self._find_column_value(row, 'rule_id', 'Rule_ID')
+                module_id = self._find_column_value(row, 'module_id', 'Module_ID')
+                
+                parity_status = self._find_column_value(row, 'parity_status', 'Parity_Status')
+                status = 'pass' if str(parity_status).strip().lower() == 'match' else \
+                         'mismatch' if str(parity_status).strip().lower() == 'mismatch' else 'pending'
                 
                 cursor.execute("""
                     INSERT OR REPLACE INTO test_cases
-                    (id, rule_id, module_id, test_name, description,
-                     input_data, expected_output, test_type, status,
+                    (id, rule_id, module_id, test_name, test_type,
+                     expected_output, legacy_result, status, last_run,
                      source_sheet, source_row, trace_id)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     test_id,
                     rule_id,
                     module_id,
-                    row.get('Test_Name'),
-                    row.get('Description'),
-                    row.get('Input_Data'),
-                    row.get('Expected_Output'),
-                    row.get('Test_Type'),
-                    row.get('Status'),
+                    self._find_column_value(row, 'test_name', 'Test_Name'),
+                    self._find_column_value(row, 'test_type', 'Test_Type'),
+                    self._find_column_value(row, 'expected_result', 'Expected_Output'),
+                    self._find_column_value(row, 'legacy_result', 'Legacy_Result'),
+                    status,
+                    self._find_column_value(row, 'last_run', 'Last_Run'),
                     sheet_name,
                     row.get('_source_row'),
                     trace_id
@@ -530,26 +558,51 @@ class XLSXIngestionService:
         elif 'modernization' in sheet_lower or 'backlog' in sheet_lower:
             for idx, row in enumerate(data):
                 trace_id = str(uuid.uuid4())[:12]
-                recommendation_id = row.get('ID') or row.get('Recommendation_ID') or f"rec_{idx}"
-                app_id = row.get('Application_ID')
-                module_id = row.get('Module_ID')
+                recommendation_id = self._find_column_value(row, 'backlog_id', 'ID', 'Recommendation_ID') or f"rec_{idx}"
+                app_id = self._find_column_value(row, 'app_id', 'Application_ID')
+                module_id = self._find_column_value(row, 'module_id', 'Module_ID')
                 
                 cursor.execute("""
                     INSERT OR REPLACE INTO modernization_backlog
                     (id, application_id, module_id, recommendation, priority,
-                     effort_estimate, risk_level, dependencies, status,
+                     effort_estimate, risk_level, preserves_continuity, target_tech, status,
                      source_sheet, source_row, trace_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     recommendation_id,
                     app_id,
                     module_id,
-                    row.get('Recommendation'),
-                    row.get('Priority'),
-                    row.get('Effort_Estimate'),
-                    row.get('Risk_Level'),
-                    row.get('Dependencies'),
-                    row.get('Status'),
+                    self._find_column_value(row, 'recommendation', 'Recommendation'),
+                    self._find_column_value(row, 'priority', 'Priority'),
+                    self._find_column_value(row, 'effort_points', 'Effort_Estimate'),
+                    self._find_column_value(row, 'risk_level', 'Risk_Level'),
+                    self._find_column_value(row, 'preserves_continuity', 'Preserves_Continuity'),
+                    self._find_column_value(row, 'target_tech', 'Target_Tech'),
+                    self._find_column_value(row, 'status', 'Status'),
+                    sheet_name,
+                    row.get('_source_row'),
+                    trace_id
+                ))
+        
+        elif 'documentation' in sheet_lower or 'artifact' in sheet_lower:
+            for idx, row in enumerate(data):
+                trace_id = str(uuid.uuid4())[:12]
+                doc_id = self._find_column_value(row, 'doc_id', 'Doc_ID', 'ID') or f"doc_{idx}"
+                app_id = self._find_column_value(row, 'app_id', 'Application_ID')
+                
+                cursor.execute("""
+                    INSERT OR REPLACE INTO documentation_artifacts
+                    (id, application_id, doc_type, doc_title, last_updated, author, excerpt,
+                     source_sheet, source_row, trace_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    doc_id,
+                    app_id,
+                    self._find_column_value(row, 'doc_type', 'Doc_Type'),
+                    self._find_column_value(row, 'doc_title', 'Doc_Title'),
+                    self._find_column_value(row, 'last_updated', 'Last_Updated'),
+                    self._find_column_value(row, 'author', 'Author'),
+                    self._find_column_value(row, 'excerpt', 'Excerpt'),
                     sheet_name,
                     row.get('_source_row'),
                     trace_id
@@ -606,6 +659,16 @@ class XLSXIngestionService:
         cursor = conn.cursor()
         
         cursor.execute("SELECT * FROM business_rules")
+        return [dict(row) for row in cursor.fetchall()]
+    
+    def get_documentation_artifacts(self, workbook_id: str) -> List[Dict]:
+        """Retrieve all documentation artifacts (tribal knowledge, runbooks, design docs)"""
+        db_path = self._get_db_path(workbook_id)
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM documentation_artifacts")
         return [dict(row) for row in cursor.fetchall()]
     
     def _get_db_path(self, workbook_id: str) -> str:

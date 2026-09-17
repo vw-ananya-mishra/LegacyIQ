@@ -1,4 +1,4 @@
-// Stub pages for LegacyX
+// Stub pages for LegacyIQ
 
 // src/pages/UnderstandPage.tsx
 import React from 'react';

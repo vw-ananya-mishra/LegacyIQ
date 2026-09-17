@@ -1,7 +1,7 @@
 // App.tsx - Main application component
 
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { WorkbookProvider, useWorkbook } from './context/WorkbookContext';
 import Navigation from './components/common/Navigation';
 import UploadPage from './pages/UploadPage';
@@ -15,10 +15,15 @@ import TraceabilityPage from './pages/TraceabilityPage';
 
 function AppContent() {
   const { currentWorkbook } = useWorkbook();
+  const location = useLocation();
+  // The upload page ("/") is always for starting fresh with a new workbook -
+  // never show tabs pointing at a previously-loaded workbook while there,
+  // even if one is still sitting in context/localStorage.
+  const onUploadPage = location.pathname === '/';
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50">
-      {currentWorkbook && <Navigation workbook={currentWorkbook} />}
+      {currentWorkbook && !onUploadPage && <Navigation workbook={currentWorkbook} />}
       
       <Routes>
         <Route 

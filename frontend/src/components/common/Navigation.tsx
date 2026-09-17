@@ -36,7 +36,7 @@ export default function Navigation({ workbook }: NavigationProps) {
             className="flex items-center gap-2 font-bold text-xl text-cyan-400 hover:text-cyan-300 transition-colors"
           >
             <span>⚡</span>
-            <span>LegacyX</span>
+            <span>LegacyIQ</span>
           </Link>
 
           {/* Desktop Navigation */}

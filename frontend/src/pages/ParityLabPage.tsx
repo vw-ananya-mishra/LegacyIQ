@@ -2,10 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import { Workbook } from '../types';
 import { workbookAPI, agentAPI } from '../utils/api';
+import AIInsightPanel from '../components/common/AIInsightPanel';
 
 export default function ParityLabPage({ workbook }: { workbook: Workbook }) {
   const [businessRules, setBusinessRules] = useState<any[]>([]);
   const [testResults, setTestResults] = useState<any[]>([]);
+  const [aiNarrative, setAiNarrative] = useState<string | null>(null);
+  const [aiGenerated, setAiGenerated] = useState<boolean | undefined>(undefined);
+  const [aiFallbackReason, setAiFallbackReason] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,21 +38,25 @@ export default function ParityLabPage({ workbook }: { workbook: Workbook }) {
         'parity_engineer',
         { context: 'Generate parity tests from business rules' }
       );
+      setAiNarrative(result?.findings?.ai_narrative || null);
+      setAiGenerated(result?.findings?.ai_generated);
+      setAiFallbackReason(result?.findings?.ai_fallback_reason || null);
       
       // Use actual test data from API response
-      if (result?.findings?.tests && Array.isArray(result.findings.tests)) {
+      if (result?.findings?.tests && Array.isArray(result.findings.tests) && result.findings.tests.length > 0) {
         const testsFromAPI = result.findings.tests.map((test: any) => ({
           id: test.test_id || test.rule_id,
-          name: test.test_name || test.rule || 'Test',
+          name: test.test_name || `Test for ${test.rule_id}` || 'Test',
           rule_id: test.rule_id,
           module_id: test.module_id,
           description: test.description,
           test_type: test.test_type || 'unit',
-          status: test.parity_status || test.status || 'pending',
+          status: test.status || test.parity_status || 'pending',
           legacy_result: test.legacy_result || 'pending',
           modern_result: test.modern_result || 'pending',
           expected_output: test.expected_output,
-          input_data: test.input_data
+          input_data: test.input_data,
+          ai_risk_note: test.ai_risk_note || null
         }));
         setTestResults(testsFromAPI);
       } else {
@@ -123,6 +131,8 @@ export default function ParityLabPage({ workbook }: { workbook: Workbook }) {
             </p>
           </div>
 
+          <AIInsightPanel narrative={aiNarrative} aiGenerated={aiGenerated} fallbackReason={aiFallbackReason} />
+
           {/* Test Results */}
           {testResults.length > 0 && (
             <div>
@@ -141,7 +151,15 @@ export default function ParityLabPage({ workbook }: { workbook: Workbook }) {
                   >
                     <div>
                       <p className="font-semibold text-slate-50">{test.name}</p>
-                      <p className="text-slate-400 text-sm">{test.duration}ms</p>
+                      <p className="text-slate-400 text-sm">
+                        {test.test_type ? `${test.test_type} · ` : ''}
+                        {test.module_id && test.module_id !== 'N/A' ? `Module: ${test.module_id} · ` : ''}
+                        {test.rule_id && test.rule_id !== 'N/A' ? `Rule: ${test.rule_id}` : ''}
+                        {test.duration ? ` · ${test.duration}ms` : ''}
+                      </p>
+                      {test.ai_risk_note && (
+                        <p className="text-indigo-300/90 text-xs mt-1 italic">✨ {test.ai_risk_note}</p>
+                      )}
                     </div>
                     <span
                       className={`px-3 py-1 rounded-full text-sm font-semibold ${
@@ -152,7 +170,7 @@ export default function ParityLabPage({ workbook }: { workbook: Workbook }) {
                           : 'bg-yellow-900/40 text-yellow-300'
                       }`}
                     >
-                      {test.status.toUpperCase()}
+                      {(test.status || 'pending').toUpperCase()}
                     </span>
                   </div>
                 ))}

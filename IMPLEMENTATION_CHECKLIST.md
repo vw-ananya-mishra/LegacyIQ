@@ -1,4 +1,4 @@
-# LegacyX Implementation Checklist & File Manifest
+# LegacyIQ Implementation Checklist & File Manifest
 
 ## ✅ Core Deliverables
 
@@ -308,7 +308,7 @@
 
 ✅ **Traceability**: Every finding has complete audit trail
 - Finding → Rule/Module → Dependency → Source Sheet → Source Record
-- Users can answer "Why did LegacyX generate this?"
+- Users can answer "Why did LegacyIQ generate this?"
 
 ✅ **Human Governance**: Explicit approval workflows
 - All recommendations start as Draft
@@ -352,4 +352,4 @@
 ---
 
 *Last Updated: 2026-09-16*
-*LegacyX v1.0.0 - Enterprise Legacy Modernization Command Center*
+*LegacyIQ v1.0.0 - Enterprise Legacy Modernization Command Center*

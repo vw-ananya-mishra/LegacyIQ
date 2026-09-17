@@ -1,5 +1,5 @@
 """
-Pydantic models and schemas for LegacyX
+Pydantic models and schemas for LegacyIQ
 """
 
 from pydantic import BaseModel

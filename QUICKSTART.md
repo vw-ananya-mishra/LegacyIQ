@@ -1,4 +1,4 @@
-# LegacyX Quick Start Guide
+# LegacyIQ Quick Start Guide
 
 ## 🎯 5-Minute Setup
 
@@ -15,6 +15,13 @@ cd LegacyX
 python generate_sample_data.py
 # Output: Legacy_Modernization_Synthetic_Dataset.xlsx
 ```
+
+### Step 2.5: (Optional) Configure AI Narratives
+The 6 agents work fully without this step (evidence-only view). To see live
+LLM-generated narratives in the "AI Insight" panels, add LLM credentials to
+`backend/.env` before starting the backend — see "LLM Configuration" in
+[README.md](README.md) for the exact variables (VW LLMaaS primary, Ollama
+local fallback).
 
 ### Step 3: Start the Application
 
@@ -34,7 +41,7 @@ start.bat
 # Terminal 1 - Backend
 cd backend
 pip install -r requirements.txt
-python main.py
+python -m uvicorn main:app --host 0.0.0.0 --port 8000
 # Runs on http://localhost:8000
 
 # Terminal 2 - Frontend
@@ -46,7 +53,7 @@ npm run dev
 
 ### Step 4: Access the Application
 1. Open browser to **http://localhost:3000**
-2. You should see the LegacyX upload page
+2. You should see the LegacyIQ upload page
 3. Upload the generated `Legacy_Modernization_Synthetic_Dataset.xlsx`
 
 ---
@@ -310,6 +317,6 @@ Upload Page (/)
 
 ---
 
-**Welcome to LegacyX! 🎉**
+**Welcome to LegacyIQ! 🎉**
 
 For detailed documentation, see [README.md](README.md)

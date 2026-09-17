@@ -1,0 +1,27 @@
+# Environment / secrets - never commit real credentials
+.env
+backend/.env
+*.env
+!*.env.example
+
+# Python
+__pycache__/
+*.pyc
+backend/venv/
+backend/.venv/
+*.egg-info/
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Runtime data / logs
+backend/data/uploads/
+backend/data/cache/*.db
+backend/server.log
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db

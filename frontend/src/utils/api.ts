@@ -8,7 +8,7 @@ const API_BASE = 'http://localhost:8000/api';
 
 const apiClient = axios.create({
   baseURL: API_BASE,
-  timeout: 30000,
+  timeout: 60000,
 });
 
 export const workbookAPI = {
@@ -75,12 +75,49 @@ export const agentAPI = {
     });
     return response.data as DependencyGraphData;
   },
+
+  getArchitectureDiagram: async (workbookId: string, recommendationId: string) => {
+    const response = await apiClient.post('/agent/architecture-diagram', {
+      workbook_id: workbookId,
+      recommendation_id: recommendationId,
+    });
+    return response.data;
+  },
 };
 
 export const traceabilityAPI = {
   traceFinding: async (workbookId: string, findingId: string, findingType: string) => {
     const response = await apiClient.post(`/traceability/trace?workbook_id=${workbookId}&finding_id=${findingId}&finding_type=${findingType}`);
     return response.data.trace;
+  },
+
+  explainTrace: async (workbookId: string, findingId: string, findingType: string, trace: any[]) => {
+    const response = await apiClient.post('/traceability/explain', {
+      workbook_id: workbookId,
+      finding_id: findingId,
+      finding_type: findingType,
+      trace,
+    });
+    return response.data;
+  },
+};
+
+export const knowledgeAPI = {
+  search: async (workbookId: string, query: string) => {
+    const response = await apiClient.post('/knowledge/search', {
+      workbook_id: workbookId,
+      query,
+    });
+    return response.data;
+  },
+};
+
+export const cobolAPI = {
+  analyze: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post('/cobol/analyze', formData);
+    return response.data;
   },
 };
 

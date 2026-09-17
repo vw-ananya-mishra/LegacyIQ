@@ -6,3 +6,7 @@ pandas>=2.0
 networkx>=3.0
 sqlalchemy>=2.0
 python-multipart>=0.0.6
+requests>=2.31
+python-dotenv>=1.0
+httpx>=0.24
+openai>=1.30

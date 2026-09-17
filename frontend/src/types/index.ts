@@ -1,4 +1,4 @@
-// LegacyX Types
+// LegacyIQ Types
 // src/types/index.ts
 
 export interface Workbook {

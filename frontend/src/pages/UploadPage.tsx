@@ -51,7 +51,7 @@ export default function UploadPage() {
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-            LegacyX
+            LegacyIQ
           </h1>
           <p className="text-xl text-slate-300 mb-2">
             Legacy Modernization Command Center

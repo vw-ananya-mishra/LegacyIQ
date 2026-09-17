@@ -4,7 +4,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Workbook, DashboardSummary } from '../types';
-import { workbookAPI } from '../utils/api';
+import { workbookAPI, agentAPI } from '../utils/api';
+import AIInsightPanel from '../components/common/AIInsightPanel';
 import { AlertTriangle, CheckCircle, AlertCircle, TrendingUp } from 'lucide-react';
 
 interface DashboardPageProps {
@@ -16,6 +17,8 @@ export default function DashboardPage({ workbook }: DashboardPageProps) {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [aiInsight, setAiInsight] = useState<{ narrative: string | null; generated?: boolean; reason?: string | null } | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
     loadDashboard();
@@ -29,6 +32,19 @@ export default function DashboardPage({ workbook }: DashboardPageProps) {
     } catch (err) {
       setError(`Failed to load dashboard: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setLoading(false);
+    }
+  };
+
+  const handleGenerateAiInsight = async () => {
+    try {
+      setAiLoading(true);
+      const result = await agentAPI.analyzeWithAgent(workbook.workbook_id, 'estate_overview', {});
+      const f = result?.findings || {};
+      setAiInsight({ narrative: f.ai_narrative || null, generated: f.ai_generated, reason: f.ai_fallback_reason });
+    } catch (err) {
+      setAiInsight({ narrative: null, generated: false, reason: err instanceof Error ? err.message : 'Failed to generate AI insight' });
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -72,6 +88,20 @@ export default function DashboardPage({ workbook }: DashboardPageProps) {
           <p className="text-slate-400">
             {summary.applications} Applications | {summary.modules} Modules | {summary.business_rules} Rules | {summary.dependencies} Dependencies
           </p>
+        </div>
+
+        {/* AI Estate Overview */}
+        <div className="mb-12">
+          <button
+            onClick={handleGenerateAiInsight}
+            disabled={aiLoading}
+            className="px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-600 text-white transition-all mb-3"
+          >
+            {aiLoading ? 'Analyzing Estate...' : '✨ Generate AI Estate Insight'}
+          </button>
+          {aiInsight && (
+            <AIInsightPanel narrative={aiInsight.narrative} aiGenerated={aiInsight.generated} fallbackReason={aiInsight.reason} />
+          )}
         </div>
 
         {/* Modernization Pipeline */}
@@ -130,19 +160,19 @@ export default function DashboardPage({ workbook }: DashboardPageProps) {
 
         {/* Key Metrics Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-          <MetricCard title="Applications" value={summary.applications} icon={<TrendingUp className="w-6 h-6" />} />
-          <MetricCard title="Code Modules" value={summary.modules} icon={<TrendingUp className="w-6 h-6" />} />
-          <MetricCard title="Business Rules" value={summary.business_rules} icon={<TrendingUp className="w-6 h-6" />} />
-          <MetricCard title="Dependencies" value={summary.dependencies} icon={<TrendingUp className="w-6 h-6" />} />
+          <MetricCard title="Applications" value={summary.applications} icon={<TrendingUp className="w-6 h-6" />} onClick={() => navigate('/understand')} />
+          <MetricCard title="Code Modules" value={summary.modules} icon={<TrendingUp className="w-6 h-6" />} onClick={() => navigate('/understand')} />
+          <MetricCard title="Business Rules" value={summary.business_rules} icon={<TrendingUp className="w-6 h-6" />} onClick={() => navigate('/understand')} />
+          <MetricCard title="Dependencies" value={summary.dependencies} icon={<TrendingUp className="w-6 h-6" />} onClick={() => navigate('/dependencies')} />
         </div>
 
         {/* Coverage Metrics */}
         <div className="mb-12">
           <h2 className="text-2xl font-bold mb-6 text-slate-50">Coverage Analysis</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <CoverageCard title="Rule Test Coverage" percentage={summary.metrics.rule_test_coverage} description="Business rules with test cases" />
-            <CoverageCard title="Module Test Coverage" percentage={summary.metrics.module_test_coverage} description="Modules with test coverage" />
-            <CoverageCard title="Documentation Coverage" percentage={summary.metrics.module_documentation_coverage} description="Documented modules" />
+            <CoverageCard title="Rule Test Coverage" percentage={summary.metrics.rule_test_coverage} description="Business rules with test cases" onClick={() => navigate('/parity')} />
+            <CoverageCard title="Module Test Coverage" percentage={summary.metrics.module_test_coverage} description="Modules with test coverage" onClick={() => navigate('/understand')} />
+            <CoverageCard title="Documentation Coverage" percentage={summary.metrics.module_documentation_coverage} description="Documented modules" onClick={() => navigate('/document')} />
           </div>
         </div>
 
@@ -166,11 +196,15 @@ interface MetricCardProps {
   title: string;
   value: number;
   icon: React.ReactNode;
+  onClick?: () => void;
 }
 
-function MetricCard({ title, value, icon }: MetricCardProps) {
+function MetricCard({ title, value, icon, onClick }: MetricCardProps) {
   return (
-    <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6">
+    <button
+      onClick={onClick}
+      className="w-full text-left bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6 hover:border-cyan-600 transition-colors cursor-pointer"
+    >
       <div className="flex items-center justify-between">
         <div>
           <p className="text-slate-400 text-sm">{title}</p>
@@ -178,7 +212,7 @@ function MetricCard({ title, value, icon }: MetricCardProps) {
         </div>
         <div className="text-cyan-400 opacity-50">{icon}</div>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -186,11 +220,15 @@ interface CoverageCardProps {
   title: string;
   percentage: number;
   description: string;
+  onClick?: () => void;
 }
 
-function CoverageCard({ title, percentage, description }: CoverageCardProps) {
+function CoverageCard({ title, percentage, description, onClick }: CoverageCardProps) {
   return (
-    <div className="bg-slate-900 border border-slate-700 rounded-lg p-6">
+    <button
+      onClick={onClick}
+      className="w-full text-left bg-slate-900 border border-slate-700 rounded-lg p-6 hover:border-cyan-600 transition-colors cursor-pointer"
+    >
       <h4 className="font-semibold text-slate-50 mb-2">{title}</h4>
       <p className="text-slate-400 text-sm mb-4">{description}</p>
       <div className="mb-3">
@@ -204,7 +242,7 @@ function CoverageCard({ title, percentage, description }: CoverageCardProps) {
         </div>
       </div>
       <p className="text-2xl font-bold text-cyan-400">{percentage.toFixed(1)}%</p>
-    </div>
+    </button>
   );
 }
 

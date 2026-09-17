@@ -1,4 +1,4 @@
-# 🚀 LegacyX - LIVE & OPERATIONAL
+# 🚀 LegacyIQ - LIVE & OPERATIONAL
 
 ## Status: ✅ BOTH BACKEND & FRONTEND RUNNING
 
@@ -28,7 +28,7 @@
 ```
 http://localhost:3000
 ```
-You'll see the LegacyX Command Center with:
+You'll see the LegacyIQ Command Center with:
 - Upload page for XLSX files
 - Dashboard with estate metrics
 - 8 pipeline stage pages
@@ -181,4 +181,4 @@ See project root for:
 
 **Ready for Demo! 🎉**
 
-*LegacyX v1.0.0 — Enterprise Legacy Modernization Command Center*
+*LegacyIQ v1.0.0 — Enterprise Legacy Modernization Command Center*

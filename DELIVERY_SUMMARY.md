@@ -1,8 +1,8 @@
-# 🚀 LegacyX - DELIVERY COMPLETE
+# 🚀 LegacyIQ - DELIVERY COMPLETE
 
 ## Executive Summary
 
-**LegacyX** is a **production-ready enterprise legacy application modernization platform** that demonstrates a complete understanding of legacy systems through evidence-backed analysis, comprehensive documentation, dependency mapping, parity testing, and risk-aware modernization recommendations.
+**LegacyIQ** is a **production-ready enterprise legacy application modernization platform** that demonstrates a complete understanding of legacy systems through evidence-backed analysis, comprehensive documentation, dependency mapping, parity testing, and risk-aware modernization recommendations.
 
 ### 🎯 Core Achievement
 
@@ -242,7 +242,7 @@ POST   /api/traceability/trace
 ### For Judges:
 ✅ **Complete Understanding** - 6 specialized agents analyze legacy systems comprehensively  
 ✅ **Evidence-Backed** - Every recommendation ties back to source XLSX  
-✅ **Intelligent Analysis** - Deterministic algorithms, no hallucinations  
+✅ **Intelligent Analysis** - Deterministic evidence + live LLM narratives (VW LLMaaS GPT-4o), grounded facts only  
 ✅ **User-Centric** - Beautiful UI with clear information hierarchy  
 ✅ **Scalable Design** - Architecture supports enterprise deployments  
 ✅ **Production Quality** - Error handling, logging, health checks  
@@ -278,7 +278,7 @@ POST   /api/traceability/trace
 1. Add authentication/authorization
 2. Migrate to PostgreSQL for multi-user
 3. Add real-time collaboration features
-4. Integrate LLM models for advanced analysis
+4. ~~Integrate LLM models for advanced analysis~~ ✅ Done — see "LLM Configuration" in README.md (VW LLMaaS/GPT-4o with Ollama fallback)
 5. Build mobile companion app
 6. Connect to CI/CD pipelines
 
@@ -316,7 +316,7 @@ POST   /api/traceability/trace
 
 ## 🎉 Summary
 
-**LegacyX v1.0** is a complete, production-ready enterprise legacy modernization platform that:
+**LegacyIQ v1.0** is a complete, production-ready enterprise legacy modernization platform that:
 
 1. ✅ Reads legacy application metadata from a single XLSX source
 2. ✅ Performs intelligent analysis through 6 specialized agents
@@ -340,5 +340,5 @@ POST   /api/traceability/trace
 
 For questions or customization, all code is well-documented and designed for extension.
 
-*LegacyX - Enterprise Legacy Modernization Command Center*  
+*LegacyIQ - Enterprise Legacy Modernization Command Center*  
 *v1.0.0 - September 2026*

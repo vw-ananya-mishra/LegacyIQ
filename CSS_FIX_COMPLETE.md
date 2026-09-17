@@ -21,7 +21,7 @@ export default {
 ✅ **All styling now working perfectly!**
 
 ### Visual Improvements:
-- ✅ Cyan/turquoise LegacyX branding with proper typography
+- ✅ Cyan/turquoise LegacyIQ branding with proper typography
 - ✅ Dark professional theme (slate-950 background)
 - ✅ Properly styled upload area with dashed borders
 - ✅ Beautiful icon rendering

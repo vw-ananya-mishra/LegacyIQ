@@ -1,4 +1,4 @@
-# 🎉 LegacyX - LIVE DEMO READY
+# 🎉 LegacyIQ - LIVE DEMO READY
 
 ## Status: ✅ ALL SYSTEMS OPERATIONAL
 
@@ -70,7 +70,7 @@ Explain traceability:
 
 ### Step 5: Evidence & Governance (15 seconds)
 ```
-"LegacyX doesn't guess — it analyzes.
+"LegacyIQ doesn't guess — it analyzes.
  All findings backed by real data.
  All findings traceable to source.
  All decisions remain with humans.
@@ -151,7 +151,7 @@ Invoke-WebRequest -Uri "http://localhost:8000/api/dependency-graph/analyze" `
 
 ---
 
-## 📈 What Makes LegacyX Special
+## 📈 What Makes LegacyIQ Special
 
 ### ✅ Single Source of Truth
 - All data from one XLSX file
@@ -163,7 +163,7 @@ Invoke-WebRequest -Uri "http://localhost:8000/api/dependency-graph/analyze" `
   - Unique trace_id (UUID)
   - source_sheet reference
   - source_row reference
-- "Why did LegacyX generate this?" → Traceable to XLSX
+- "Why did LegacyIQ generate this?" → Traceable to XLSX
 
 ### ✅ Intelligent Analysis
 - Dependency graph (NetworkX)
@@ -244,7 +244,7 @@ LegacyX/
 
 Answer: **Understand them completely first.**
 
-### LegacyX Solution
+### LegacyIQ Solution
 1. **Ingest** - Parse XLSX application metadata
 2. **Analyze** - 6 specialized agents examine every angle
 3. **Understand** - Build complete architectural model
@@ -257,9 +257,9 @@ Answer: **Understand them completely first.**
 > Evidence → Intelligence → Parity → Risk-Aware Modernization"
 
 ### Competitive Advantages
-- ✅ **No hallucinations** - All data sourced from XLSX
+- ✅ **No hallucinations in the facts** - All findings sourced from XLSX; the LLM only narrates evidence, never invents it
 - ✅ **Complete traceability** - Every finding has audit trail
-- ✅ **Deterministic** - Same input = same results
+- ✅ **Deterministic facts, real AI narratives** - Risk/graph/metric facts are reproducible; narratives are genuinely LLM-generated (VW LLMaaS GPT-4o, Ollama fallback)
 - ✅ **Explainable** - Can explain any finding with XLSX evidence
 - ✅ **Scalable** - Handles enterprise complexity
 - ✅ **Governance-ready** - Human-in-the-loop workflows
@@ -293,7 +293,7 @@ docker build -t legacyx-frontend ./frontend
 
 ## ✨ Bottom Line
 
-**LegacyX is production-ready, fully tested, and ready to demonstrate.**
+**LegacyIQ is production-ready, fully tested, and ready to demonstrate.**
 
 - ✅ Backend: 100% operational
 - ✅ Data: Ingested and analyzed
@@ -309,4 +309,4 @@ docker build -t legacyx-frontend ./frontend
 
 **Status: READY FOR JUDGES ✅**
 
-*LegacyX v1.0.0 — Enterprise Legacy Modernization Command Center*
+*LegacyIQ v1.0.0 — Enterprise Legacy Modernization Command Center*

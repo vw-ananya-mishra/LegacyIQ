@@ -1,7 +1,10 @@
 """
-LegacyX Backend - Enterprise Legacy Modernization Platform
+LegacyIQ Backend - Enterprise Legacy Modernization Platform
 Core XLSX Ingestion and Analysis Engine
 """
+
+from dotenv import load_dotenv
+load_dotenv()
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,7 +25,7 @@ from app.models.schemas import (
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="LegacyX Backend",
+    title="LegacyIQ Backend",
     description="AI-Powered Legacy Application Modernization Platform",
     version="1.0.0"
 )
@@ -81,7 +84,7 @@ async def startup_event():
     """Initialize services on startup"""
     os.makedirs("data/uploads", exist_ok=True)
     os.makedirs("data/cache", exist_ok=True)
-    print("[OK] LegacyX Backend initialized")
+    print("[OK] LegacyIQ Backend initialized")
 
 @app.get("/health")
 async def health_check():
@@ -173,6 +176,15 @@ async def get_business_rules(workbook_id: str):
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+@app.get("/api/workbook/{workbook_id}/documentation-artifacts")
+async def get_documentation_artifacts(workbook_id: str):
+    """Get all documentation artifacts (tribal knowledge, runbooks, design docs)"""
+    try:
+        artifacts = ingestion_service.get_documentation_artifacts(workbook_id)
+        return {"documentation_artifacts": artifacts}
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
 @app.post("/api/agent/analyze", response_model=AnalysisResponse)
 async def run_agent_analysis(request: AnalysisRequest):
     """
@@ -213,6 +225,10 @@ async def run_agent_analysis(request: AnalysisRequest):
             )
         elif request.agent_type == "security_continuity_guardian":
             findings, evidence = agent_orchestrator.security_continuity_guardian_detect(
+                request.workbook_id, request.context
+            )
+        elif request.agent_type == "estate_overview":
+            findings, evidence = agent_orchestrator.estate_overview_generate(
                 request.workbook_id, request.context
             )
         else:
@@ -283,6 +299,98 @@ async def trace_finding(workbook_id: str, finding_id: str, finding_type: str):
             workbook_id, finding_id, finding_type
         )
         return {"trace": trace_chain}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+class ArchitectureDiagramRequest(BaseModel):
+    workbook_id: str
+    recommendation_id: str
+
+@app.post("/api/agent/architecture-diagram")
+async def get_architecture_diagram(request: ArchitectureDiagramRequest):
+    """AI-generated before/after architecture diagram for one modernization recommendation."""
+    try:
+        findings, evidence = agent_orchestrator.architecture_diagram_generate(
+            request.workbook_id, {"recommendation_id": request.recommendation_id}
+        )
+        return {
+            "status": "success",
+            "findings": findings,
+            "evidence": evidence['evidence_list'],
+            "confidence": evidence['confidence'],
+            "trace": evidence['trace'],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+class TraceExplainRequest(BaseModel):
+    workbook_id: str
+    finding_id: str
+    finding_type: str
+    trace: List[Dict[str, Any]] = []
+
+@app.post("/api/traceability/explain")
+async def explain_trace(request: TraceExplainRequest):
+    """AI narrative explaining what a trace chain proves about data integrity."""
+    from app.services import llm_service
+    try:
+        narrative = llm_service.generate_narrative(
+            "Traceability Auditor",
+            "Explain in 1-2 sentences what this trace chain proves: that the finding is grounded "
+            "in real source data, and highlight anything notable about its evidence chain.",
+            {"finding_id": request.finding_id, "finding_type": request.finding_type, "trace": request.trace},
+        )
+        return {"ai_narrative": narrative, "ai_generated": narrative is not None}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+class KnowledgeSearchRequest(BaseModel):
+    workbook_id: str
+    query: str
+
+@app.post("/api/knowledge/search")
+async def knowledge_search(request: KnowledgeSearchRequest):
+    """
+    Vector-embedding RAG search over the workbook's free-text knowledge
+    (Documentation_Artifacts excerpts, Business_Rules, Modernization_Backlog).
+    Retrieval = embeddings + cosine similarity; Generation = LLM answer
+    grounded strictly in the retrieved chunks.
+    """
+    try:
+        findings, evidence = agent_orchestrator.knowledge_hub_search(
+            request.workbook_id, {"query": request.query}
+        )
+        return {
+            "status": "success",
+            "findings": findings,
+            "evidence": evidence['evidence_list'],
+            "confidence": evidence['confidence'],
+            "trace": evidence['trace'],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/cobol/analyze")
+async def analyze_cobol_file(file: UploadFile = File(...)):
+    """
+    Parse and analyze a single .cbl COBOL source file (demo-scale structural
+    analysis): divisions, data items, paragraphs, external CALLs, copybooks,
+    file I/O, embedded SQL, and a complexity estimate - all deterministic,
+    then narrated by the LLM.
+    """
+    if not file.filename or not file.filename.lower().endswith('.cbl'):
+        raise HTTPException(status_code=400, detail="Only .cbl files are supported for this demo feature")
+    try:
+        raw = await file.read()
+        source = raw.decode('utf-8', errors='replace')
+        findings, evidence = agent_orchestrator.cobol_source_analyze(source, file.filename)
+        return {
+            "status": "success",
+            "findings": findings,
+            "evidence": evidence['evidence_list'],
+            "confidence": evidence['confidence'],
+            "trace": evidence['trace'],
+        }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
