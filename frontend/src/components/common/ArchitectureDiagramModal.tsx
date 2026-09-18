@@ -81,17 +81,36 @@ export default function ArchitectureDiagramModal({ workbookId, recommendationId,
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [codeLoading, setCodeLoading] = useState(false);
+  const [codeData, setCodeData] = useState<any>(null);
+  const [codeError, setCodeError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!recommendationId) return;
     setLoading(true);
     setError(null);
     setData(null);
+    setCodeData(null);
+    setCodeError(null);
     agentAPI.getArchitectureDiagram(workbookId, recommendationId)
       .then((res) => setData(res.findings))
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load diagram'))
       .finally(() => setLoading(false));
   }, [workbookId, recommendationId]);
+
+  const handleSuggestCode = async () => {
+    if (!recommendationId) return;
+    try {
+      setCodeLoading(true);
+      setCodeError(null);
+      const res = await agentAPI.getModernizedCode(workbookId, recommendationId);
+      setCodeData(res.findings);
+    } catch (err) {
+      setCodeError(err instanceof Error ? err.message : 'Failed to generate modernized code');
+    } finally {
+      setCodeLoading(false);
+    }
+  };
 
   const focusId = data?.recommendation?.module_id || data?.recommendation?.application_id;
   const oldFlow = toFlow(data?.old_architecture, focusId);
@@ -154,6 +173,52 @@ export default function ArchitectureDiagramModal({ workbookId, recommendationId,
                   </ul>
                 </div>
               )}
+
+              <div className="border-t border-slate-800 pt-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-slate-200">💻 Suggested Modernized Code</h3>
+                  <button
+                    onClick={handleSuggestCode}
+                    disabled={codeLoading}
+                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-600 text-white transition-all"
+                  >
+                    {codeLoading ? 'Translating Code...' : '✨ Suggest Modernized Code'}
+                  </button>
+                </div>
+
+                {codeError && <p className="text-red-400 text-sm mb-3">{codeError}</p>}
+
+                {codeData && codeData.available === false && (
+                  <p className="text-slate-500 text-sm">{codeData.reason}</p>
+                )}
+
+                {codeData && codeData.available !== false && (
+                  <div>
+                    <AIInsightPanel narrative={codeData.ai_narrative} aiGenerated={codeData.ai_generated} fallbackReason={codeData.ai_fallback_reason} />
+                    {codeData.explanation && (
+                      <p className="text-slate-300 text-sm mb-3">{codeData.explanation}</p>
+                    )}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs font-semibold text-red-300 mb-1">
+                          Original COBOL{codeData.paragraph_name ? ` — ${codeData.paragraph_name}` : ''}
+                        </p>
+                        <pre className="bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-300 overflow-x-auto max-h-80 overflow-y-auto whitespace-pre-wrap">
+                          {codeData.original_code}
+                        </pre>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-green-300 mb-1">
+                          Modernized{codeData.language ? ` (${codeData.language})` : ''}
+                        </p>
+                        <pre className="bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-300 overflow-x-auto max-h-80 overflow-y-auto whitespace-pre-wrap">
+                          {codeData.modernized_code || 'No modernized code generated.'}
+                        </pre>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </Dialog.Content>

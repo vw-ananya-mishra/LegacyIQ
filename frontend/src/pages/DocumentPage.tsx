@@ -19,7 +19,7 @@ function downloadDocument(result: any, docType: string, appName: string) {
     '---',
     '',
     ...sections.flatMap((s: any) => [
-      `## ${s.title}${s.requires_review ? ' ⚠️ (needs review)' : ''}`,
+      `## ${s.title}${s.requires_review ? ' [NEEDS REVIEW]' : ''}`,
       '',
       s.content || '',
       '',

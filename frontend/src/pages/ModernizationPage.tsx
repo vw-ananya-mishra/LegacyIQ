@@ -225,7 +225,7 @@ export default function ModernizationPage({ workbook }: { workbook: Workbook }) 
           </div>
           <button
             onClick={handleGenerateRecommendations}
-            disabled={generating || risks.length === 0}
+            disabled={generating}
             className="px-6 py-3 bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-600 text-white rounded-lg font-semibold transition-all mb-6"
           >
             {generating ? 'Analyzing Risks...' : 'Generate Recommendations'}
@@ -245,10 +245,19 @@ export default function ModernizationPage({ workbook }: { workbook: Workbook }) 
                   <div className="flex justify-between items-start mb-3">
                     <div>
                       <h3 className="text-lg font-bold text-slate-50">{rec.title}</h3>
-                      <p className="text-slate-400 text-sm mt-1">{rec.description}</p>
-                      {rec.strategy && (
-                        <p className="text-indigo-300/90 text-sm mt-2 italic">{rec.strategy}</p>
-                      )}
+                      <div className="flex gap-2 mt-2 flex-wrap">
+                        {rec.targetTech && (
+                          <span className="text-xs font-semibold px-2 py-1 rounded bg-green-900/40 text-green-300 border border-green-700/50">
+                            🎯 {rec.targetTech}
+                          </span>
+                        )}
+                        {rec.strategy && (
+                          <span className="text-xs font-semibold px-2 py-1 rounded bg-indigo-900/40 text-indigo-300 border border-indigo-700/50">
+                            {rec.strategy}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-slate-400 text-sm mt-2">{rec.description}</p>
                     </div>
                     <span className={`px-3 py-1 rounded text-sm font-semibold ${priorityColors[rec.priority] || 'text-slate-300'}`}>
                       {rec.priority}

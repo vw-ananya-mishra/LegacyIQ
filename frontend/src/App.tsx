@@ -3,6 +3,8 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { WorkbookProvider, useWorkbook } from './context/WorkbookContext';
+// TODO: Theme context temporarily disabled due to path resolution issues in OneDrive path
+// import { ThemeProvider } from './context/ThemeContext';
 import Navigation from './components/common/Navigation';
 import UploadPage from './pages/UploadPage';
 import DashboardPage from './pages/DashboardPage';
@@ -22,7 +24,7 @@ function AppContent() {
   const onUploadPage = location.pathname === '/';
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-50">
+    <div className="min-h-screen bg-slate-950 text-slate-50 transition-colors">
       {currentWorkbook && !onUploadPage && <Navigation workbook={currentWorkbook} />}
       
       <Routes>
@@ -46,9 +48,13 @@ function AppContent() {
 function App() {
   return (
     <Router>
-      <WorkbookProvider>
-        <AppContent />
-      </WorkbookProvider>
+      {/* TODO: Theme provider temporarily disabled due to path resolution issues
+      <ThemeProvider>
+      */}
+        <WorkbookProvider>
+          <AppContent />
+        </WorkbookProvider>
+      {/* </ThemeProvider> */}
     </Router>
   );
 }

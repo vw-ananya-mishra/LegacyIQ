@@ -157,12 +157,20 @@ export default function ParityLabPage({ workbook }: { workbook: Workbook }) {
                         {test.rule_id && test.rule_id !== 'N/A' ? `Rule: ${test.rule_id}` : ''}
                         {test.duration ? ` · ${test.duration}ms` : ''}
                       </p>
+                      {test.expected_output && (
+                        <p className="text-slate-400 text-xs mt-1">{test.expected_output}</p>
+                      )}
                       {test.ai_risk_note && (
                         <p className="text-indigo-300/90 text-xs mt-1 italic">✨ {test.ai_risk_note}</p>
                       )}
+                      {test.status === 'pending' && (
+                        <p className="text-slate-500 text-xs mt-1 italic">
+                          Scenario generated — awaiting execution against the modernized code
+                        </p>
+                      )}
                     </div>
                     <span
-                      className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                      className={`px-3 py-1 rounded-full text-sm font-semibold shrink-0 ${
                         test.status === 'pass'
                           ? 'bg-green-900/40 text-green-300'
                           : test.status === 'fail'

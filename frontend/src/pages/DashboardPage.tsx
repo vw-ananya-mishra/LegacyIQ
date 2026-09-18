@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { Workbook, DashboardSummary } from '../types';
 import { workbookAPI, agentAPI } from '../utils/api';
 import AIInsightPanel from '../components/common/AIInsightPanel';
-import { AlertTriangle, CheckCircle, AlertCircle, TrendingUp } from 'lucide-react';
+import { AlertTriangle, CheckCircle, AlertCircle, TrendingUp, Search, FileText, Map, CheckCircle2, Rocket } from 'lucide-react';
 
 interface DashboardPageProps {
   workbook: Workbook;
@@ -70,11 +70,11 @@ export default function DashboardPage({ workbook }: DashboardPageProps) {
   }
 
   const stages = [
-    { key: 'understand', label: 'UNDERSTAND', icon: '🔍', path: '/understand' },
-    { key: 'document', label: 'DOCUMENT', icon: '📋', path: '/document' },
-    { key: 'map', label: 'MAP', icon: '🗺️', path: '/dependencies' },
-    { key: 'test', label: 'TEST', icon: '✅', path: '/parity' },
-    { key: 'modernize', label: 'MODERNIZE', icon: '🚀', path: '/modernize' },
+    { key: 'understand', label: 'UNDERSTAND', icon: Search, path: '/understand' },
+    { key: 'document', label: 'DOCUMENT', icon: FileText, path: '/document' },
+    { key: 'map', label: 'MAP', icon: Map, path: '/dependencies' },
+    { key: 'test', label: 'TEST', icon: CheckCircle2, path: '/parity' },
+    { key: 'modernize', label: 'MODERNIZE', icon: Rocket, path: '/modernize' },
   ];
 
   return (
@@ -83,7 +83,7 @@ export default function DashboardPage({ workbook }: DashboardPageProps) {
         {/* Header */}
         <div className="mb-12">
           <h1 className="text-4xl font-bold mb-2 text-slate-50">
-            Command Center
+            LegacyIQ
           </h1>
           <p className="text-slate-400">
             {summary.applications} Applications | {summary.modules} Modules | {summary.business_rules} Rules | {summary.dependencies} Dependencies
@@ -132,7 +132,7 @@ export default function DashboardPage({ workbook }: DashboardPageProps) {
                         : 'bg-slate-800 border-slate-700 hover:border-slate-600'
                     }`}
                   >
-                    <div className="text-3xl mb-2">{stage.icon}</div>
+                    <div className="text-3xl mb-2">{<stage.icon size={32} className="text-cyan-400" />}</div>
                     <h3 className="font-bold text-sm text-slate-50">{stage.label}</h3>
                     
                     <div className="mt-3 w-full bg-slate-700 rounded-full h-2">

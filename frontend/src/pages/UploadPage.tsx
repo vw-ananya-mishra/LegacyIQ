@@ -17,11 +17,11 @@ export default function UploadPage() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f && f.name.endsWith('.xlsx')) {
+    if (f && (f.name.toLowerCase().endsWith('.xlsx') || f.name.toLowerCase().endsWith('.cbl'))) {
       setFile(f);
       setError(null);
     } else {
-      setError('Please select a valid Excel file (.xlsx)');
+      setError('Please select a valid Excel file (.xlsx) or COBOL source file (.cbl)');
     }
   };
 
@@ -93,7 +93,7 @@ export default function UploadPage() {
                 </p>
                 <input
                   type="file"
-                  accept=".xlsx"
+                  accept=".xlsx,.cbl"
                   onChange={handleFileSelect}
                   className="hidden"
                   id="file-input"
@@ -136,11 +136,17 @@ export default function UploadPage() {
 
               {/* Info Box */}
               <div className="mt-8 p-4 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-300">
-                <p className="font-semibold mb-2">Expected File:</p>
-                <p>Legacy_Modernization_Synthetic_Dataset.xlsx</p>
-                <p className="text-slate-400 mt-2 text-xs">
+                <p className="font-semibold mb-2">Two ways to ingest an estate:</p>
+                <p><span className="text-cyan-400 font-semibold">.xlsx</span> — Legacy_Modernization_Synthetic_Dataset.xlsx</p>
+                <p className="text-slate-400 text-xs mb-2">
                   Should contain sheets: Applications, Code_Modules, Business_Rules, Dependencies, 
                   Data_Stores, Integrations, Test_Cases, Modernization_Backlog, Documentation_Artifacts
+                </p>
+                <p><span className="text-cyan-400 font-semibold">.cbl</span> — a single real COBOL source file</p>
+                <p className="text-slate-400 text-xs">
+                  Parsed directly into the same estate model: PROCEDURE DIVISION paragraphs become
+                  modules, PERFORM/CALL statements become dependencies, SELECT...ASSIGN TO files
+                  become data stores — every page below works identically either way.
                 </p>
               </div>
             </>

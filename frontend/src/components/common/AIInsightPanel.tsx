@@ -4,6 +4,7 @@
 // deterministic template output instead (so the user is never misled into
 // thinking non-AI content is AI-generated).
 import React from 'react';
+import { AlertCircle } from 'lucide-react';
 
 interface AIInsightPanelProps {
   narrative?: string | null;
@@ -16,7 +17,7 @@ export default function AIInsightPanel({ narrative, aiGenerated, fallbackReason 
     return (
       <div className="mb-6 p-4 rounded-lg border border-amber-700/50 bg-gradient-to-br from-amber-950/40 to-slate-900">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-lg">⚠️</span>
+          <AlertCircle size={18} className="text-amber-400" />
           <h4 className="font-semibold text-amber-300 text-sm">Not AI-Generated</h4>
         </div>
         <p className="text-amber-200/80 text-xs">

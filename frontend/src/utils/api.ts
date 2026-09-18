@@ -83,6 +83,14 @@ export const agentAPI = {
     });
     return response.data;
   },
+
+  getModernizedCode: async (workbookId: string, recommendationId: string) => {
+    const response = await apiClient.post('/agent/modernize-code', {
+      workbook_id: workbookId,
+      recommendation_id: recommendationId,
+    });
+    return response.data;
+  },
 };
 
 export const traceabilityAPI = {

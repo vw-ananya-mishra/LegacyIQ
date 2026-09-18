@@ -98,27 +98,35 @@ async def health_check():
 @app.post("/api/workbook/upload", response_model=UploadResponse)
 async def upload_workbook(file: UploadFile = File(...)):
     """
-    Upload and ingest Legacy_Modernization_Synthetic_Dataset.xlsx
-    
-    - Validates Excel structure
-    - Reads all sheets dynamically
-    - Creates relationships
-    - Stores normalized data
-    - Returns metadata and validation report
+    Upload and ingest an estate dataset - either:
+    - Legacy_Modernization_Synthetic_Dataset.xlsx (spreadsheet-based estate), or
+    - a single .cbl COBOL source file (code-based estate, demo-scale)
+
+    Either path produces a workbook_id backed by the identical SQLite schema,
+    so every downstream page/agent (Dashboard, Understand, Document,
+    Dependencies, Parity, Modernization, Traceability, Knowledge Hub) works
+    unchanged regardless of source format.
     """
+    filename = (file.filename or "").lower()
     try:
-        # Save uploaded file
-        contents = await file.read()
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
-            tmp.write(contents)
-            tmp_path = tmp.name
-        
-        # Ingest workbook
-        workbook_id, metadata, validation = ingestion_service.ingest_workbook(tmp_path)
-        
-        # Clean up temp file
-        os.unlink(tmp_path)
-        
+        if filename.endswith(".cbl"):
+            from app.services.cobol_ingestion import ingest_cobol_file
+            contents = await file.read()
+            source = contents.decode("utf-8", errors="replace")
+            workbook_id, metadata, validation = ingest_cobol_file(file.filename, source, ingestion_service)
+        else:
+            # Save uploaded file
+            contents = await file.read()
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+                tmp.write(contents)
+                tmp_path = tmp.name
+
+            # Ingest workbook
+            workbook_id, metadata, validation = ingestion_service.ingest_workbook(tmp_path)
+
+            # Clean up temp file
+            os.unlink(tmp_path)
+
         return UploadResponse(
             status="success" if not validation['errors'] else "completed_with_errors",
             workbook_id=workbook_id,
@@ -311,6 +319,27 @@ async def get_architecture_diagram(request: ArchitectureDiagramRequest):
     """AI-generated before/after architecture diagram for one modernization recommendation."""
     try:
         findings, evidence = agent_orchestrator.architecture_diagram_generate(
+            request.workbook_id, {"recommendation_id": request.recommendation_id}
+        )
+        return {
+            "status": "success",
+            "findings": findings,
+            "evidence": evidence['evidence_list'],
+            "confidence": evidence['confidence'],
+            "trace": evidence['trace'],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/agent/modernize-code")
+async def get_modernized_code(request: ArchitectureDiagramRequest):
+    """
+    For a COBOL-sourced modernization recommendation, translate the REAL
+    original COBOL paragraph into idiomatic code for the recommendation's
+    target_tech. Returns available=False if this workbook wasn't COBOL-sourced.
+    """
+    try:
+        findings, evidence = agent_orchestrator.cobol_modernize_code(
             request.workbook_id, {"recommendation_id": request.recommendation_id}
         )
         return {

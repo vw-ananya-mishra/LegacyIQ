@@ -1000,6 +1000,103 @@ class AgentOrchestrator:
         
         return findings, evidence
     
+    def _synthesize_test_cases(self, workbook_id: str, cursor, rules: List[Dict], svc) -> List[Dict]:
+        """
+        Parity Validator agent: auto-generate real test scenarios for business
+        rules that don't have one yet (e.g. every rule extracted straight from
+        a COBOL ingestion - see cobol_ingestion.py, which seeds has_test_case='N'
+        and zero test_cases rows by design). Grounds each scenario in the real
+        COBOL paragraph body when available so expected outputs reflect actual
+        conditional logic instead of invented behavior. Persists results so
+        they survive across page loads, and marks the rule has_test_case='Y'.
+        """
+        from app.services.cobol_ingestion import get_cobol_source
+        from app.services.cobol_parser import parse_cobol_source
+
+        cursor.execute("SELECT id, name FROM code_modules")
+        module_names = {row['id']: row['name'] for row in cursor.fetchall()}
+
+        # Ground generation in the real paragraph body for COBOL-sourced
+        # workbooks; XLSX-sourced rules fall back to rule name/domain only.
+        paragraph_bodies: Dict[str, str] = {}
+        source, filename = get_cobol_source(workbook_id, svc.cache_dir)
+        if source:
+            facts = parse_cobol_source(source, filename)
+            for p in facts.get("paragraph_details", []):
+                paragraph_bodies[p["name"]] = p.get("body", "")
+
+        needing_tests = [r for r in rules if str(r.get('has_test_case') or '').upper() != 'Y']
+        if not needing_tests:
+            return []
+
+        ai_facts = {
+            "rules": [
+                {
+                    "rule_id": r['id'],
+                    "rule_name": r.get('rule_name'),
+                    "criticality": r.get('criticality'),
+                    "paragraph_body": paragraph_bodies.get(module_names.get(r.get('module_id')), '')[:800],
+                }
+                for r in needing_tests
+            ]
+        }
+        schema_hint = (
+            '{"tests": [{"rule_id": str, "test_name": str, '
+            '"test_type": str ("unit"|"regression"|"boundary"), '
+            '"input_data": str, "expected_output": str}]} '
+            '(one entry per FACTS.rules item)'
+        )
+        ai_result = llm_service.generate_structured(
+            "Parity Validator",
+            "For each rule in FACTS.rules, design one concrete parity test scenario that proves "
+            "the modernized code preserves the exact conditional logic in paragraph_body. Give a "
+            "realistic input_data and the expected_output implied by that logic - do not invent "
+            "fields or conditions not present in paragraph_body. If paragraph_body is empty, base "
+            "the scenario on rule_name and criticality instead.",
+            ai_facts, schema_hint, max_tokens=900,
+        )
+
+        ai_tests_by_rule: Dict[str, Dict] = {}
+        if ai_result and isinstance(ai_result.get("tests"), list):
+            for t in ai_result["tests"]:
+                if isinstance(t, dict) and t.get("rule_id") not in (None, ""):
+                    ai_tests_by_rule[str(t["rule_id"])] = t
+
+        generated: List[Dict] = []
+        for idx, r in enumerate(needing_tests, start=1):
+            test_id = f"TC-{idx:03d}-{r['id']}"
+            ai_test = ai_tests_by_rule.get(str(r['id']))
+            if ai_test:
+                test_name = ai_test.get("test_name") or f"Verify {r.get('rule_name')}"
+                test_type = ai_test.get("test_type") or "unit"
+                input_data = ai_test.get("input_data") or "N/A"
+                expected_output = ai_test.get("expected_output") or "N/A"
+            else:
+                test_name = f"Verify {r.get('rule_name') or r['id']}"
+                test_type = "unit"
+                input_data = "AI provider unavailable - define manually"
+                expected_output = "AI provider unavailable - define manually"
+            cursor.execute(
+                """INSERT INTO test_cases
+                   (id, rule_id, module_id, test_name, test_type, expected_output,
+                    legacy_result, status, last_run, source_sheet, source_row, trace_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    test_id, r['id'], r.get('module_id'), test_name, test_type,
+                    f"Input: {input_data} -> Expected: {expected_output}",
+                    None, "pending", None,
+                    r.get('source_sheet'), r.get('source_row'), str(uuid.uuid4())[:12],
+                ),
+            )
+            cursor.execute("UPDATE business_rules SET has_test_case = 'Y' WHERE id = ?", (r['id'],))
+            generated.append({
+                "id": test_id, "rule_id": r['id'], "module_id": r.get('module_id'),
+                "test_name": test_name, "test_type": test_type,
+                "expected_output": f"Input: {input_data} -> Expected: {expected_output}",
+                "legacy_result": None, "status": "pending",
+            })
+        return generated
+
     def parity_engineer_generate(self, workbook_id: str, context: Dict) -> Tuple[Dict, Dict]:
         """Generate parity tests from business rules and test cases"""
         from app.services.xlsx_ingestion import XLSXIngestionService
@@ -1017,6 +1114,14 @@ class AgentOrchestrator:
         # Fetch business rules for context
         cursor.execute("SELECT * FROM business_rules")
         rules = [dict(row) for row in cursor.fetchall()]
+        
+        # COBOL-sourced workbooks (and any rule extracted without a matching
+        # test) start with zero test_cases by design - see cobol_ingestion.py.
+        # The Parity Validator agent synthesizes real, logic-grounded scenarios
+        # now instead of the UI falling back to generic placeholder rows.
+        if not test_cases and rules:
+            test_cases = self._synthesize_test_cases(workbook_id, cursor, rules, svc)
+            conn.commit()
         
         # Normalize raw source statuses (e.g. "Passed"/"Failed") to a small set
         # of parity outcomes used by the UI for coloring/aggregation
@@ -1577,3 +1682,109 @@ class AgentOrchestrator:
             ],
         }
         return findings, evidence
+
+    def cobol_modernize_code(self, workbook_id: str, context: Dict) -> Tuple[Dict, Dict]:
+        """
+        For a modernization recommendation that originated from a COBOL
+        ingestion, translate the REAL original COBOL source (the exact
+        paragraph, re-fetched from the saved .cbl file — not just structural
+        facts) into idiomatic code for the recommendation's target_tech.
+        The AI is instructed to preserve the original logic exactly, not
+        invent new business rules.
+        """
+        from app.services.cobol_ingestion import get_cobol_source
+        from app.services.cobol_parser import parse_cobol_source
+        from app.services.xlsx_ingestion import XLSXIngestionService
+
+        recommendation_id = context.get('recommendation_id')
+        svc = XLSXIngestionService()
+        db_path = svc._get_db_path(workbook_id)
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM modernization_backlog WHERE id = ?", (recommendation_id,))
+        rec_row = cursor.fetchone()
+        if not rec_row:
+            return {}, {"evidence_list": [], "confidence": 0, "trace": []}
+        rec = dict(rec_row)
+
+        source, filename = get_cobol_source(workbook_id)
+        if source is None:
+            return (
+                {"available": False, "reason": "This recommendation did not originate from a COBOL file ingestion — no original source code exists to translate."},
+                {"evidence_list": [], "confidence": 0, "trace": []},
+            )
+
+        module = None
+        if rec.get('module_id'):
+            cursor.execute("SELECT * FROM code_modules WHERE id = ?", (rec['module_id'],))
+            m = cursor.fetchone()
+            module = dict(m) if m else None
+
+        facts = parse_cobol_source(source, filename)
+        paragraph_name = module.get('name') if module else None
+        original_snippet = None
+        if paragraph_name:
+            for p in facts.get('paragraph_details', []):
+                if p['name'] == paragraph_name:
+                    original_snippet = f"{paragraph_name}.\n{p['body']}".strip()
+                    break
+        if original_snippet is None:
+            # Program-level recommendation (e.g. file/integration migration) - use the
+            # DATA/ENVIRONMENT context most relevant to it instead of a single paragraph.
+            original_snippet = source[:4000]
+
+        target_tech = rec.get('target_tech') or 'a modern equivalent stack'
+        ai_facts = {
+            "recommendation": rec.get('recommendation'),
+            "target_tech": target_tech,
+            "paragraph_name": paragraph_name,
+            "original_cobol_snippet": original_snippet,
+        }
+        schema_hint = '{"language": str, "modernized_code": str, "explanation": str, "ai_narrative": str}'
+        ai_result = llm_service.generate_structured(
+            "Modernization Strategist",
+            "Translate the REAL COBOL snippet in FACTS.original_cobol_snippet into idiomatic code "
+            "for FACTS.target_tech (pick a sensible language: e.g. Java for 'Java/Spring', Python "
+            "for generic service targets, SQL/DDL for database targets like PostgreSQL). Preserve "
+            "the exact conditions/business logic from the original — do not invent new rules or "
+            "fields not present in FACTS. Return: language (the language you chose), modernized_code "
+            "(a complete, readable code block), explanation (2-3 sentences mapping old constructs to "
+            "new ones), and a 1-sentence ai_narrative.",
+            ai_facts, schema_hint, max_tokens=1200,
+        )
+
+        if ai_result and ai_result.get("modernized_code"):
+            findings = {
+                "available": True,
+                "recommendation_id": recommendation_id,
+                "paragraph_name": paragraph_name,
+                "original_code": original_snippet,
+                "language": ai_result.get("language", target_tech),
+                "modernized_code": ai_result.get("modernized_code"),
+                "explanation": ai_result.get("explanation"),
+                "ai_narrative": ai_result.get("ai_narrative"),
+                "ai_generated": True,
+            }
+        else:
+            findings = {
+                "available": True,
+                "recommendation_id": recommendation_id,
+                "paragraph_name": paragraph_name,
+                "original_code": original_snippet,
+                "language": None,
+                "modernized_code": None,
+                "explanation": None,
+                "ai_narrative": None,
+                "ai_generated": False,
+                "ai_fallback_reason": "AI provider unavailable — showing the original COBOL source only, no modernized code generated.",
+            }
+
+        evidence = {
+            "evidence_list": [{"source_sheet": filename, "source_row": rec.get('source_row'), "type": "recommendation"}],
+            "confidence": 0.7,
+            "trace": [{"step": 1, "entity": "Recommendation", "id": rec['id']}, {"step": 2, "analysis": "cobol_code_translation"}],
+        }
+        return findings, evidence
+

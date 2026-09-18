@@ -1,11 +1,11 @@
 // src/pages/UnderstandPage.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { Workbook, Application, CodeModule } from '../types';
-import { workbookAPI, agentAPI, cobolAPI } from '../utils/api';
+import { workbookAPI, agentAPI } from '../utils/api';
 import AIInsightPanel from '../components/common/AIInsightPanel';
 
 export default function UnderstandPage({ workbook }: { workbook: Workbook }) {
-  const [activeTab, setActiveTab] = useState<'applications' | 'modules' | 'rules' | 'cobol'>('applications');
+  const [activeTab, setActiveTab] = useState<'applications' | 'modules' | 'rules'>('applications');
   const [applications, setApplications] = useState<Application[]>([]);
   const [modules, setModules] = useState<CodeModule[]>([]);
   const [businessRules, setBusinessRules] = useState<any[]>([]);
@@ -15,10 +15,6 @@ export default function UnderstandPage({ workbook }: { workbook: Workbook }) {
   const [aiInsight, setAiInsight] = useState<{ narrative: string | null; generated?: boolean; reason?: string | null } | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiAppId, setAiAppId] = useState<string>('');
-  const [cobolFile, setCobolFile] = useState<File | null>(null);
-  const [cobolResult, setCobolResult] = useState<any>(null);
-  const [cobolLoading, setCobolLoading] = useState(false);
-  const [cobolError, setCobolError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -58,20 +54,6 @@ export default function UnderstandPage({ workbook }: { workbook: Workbook }) {
     if (!selectedAppId) return businessRules;
     return businessRules.filter((r: any) => moduleAppMap[r.module_id] === selectedAppId);
   }, [businessRules, selectedAppId, moduleAppMap]);
-
-  const handleAnalyzeCobol = async () => {
-    if (!cobolFile) return;
-    try {
-      setCobolLoading(true);
-      setCobolError(null);
-      const result = await cobolAPI.analyze(cobolFile);
-      setCobolResult(result);
-    } catch (err) {
-      setCobolError(err instanceof Error ? err.message : 'Failed to analyze COBOL file');
-    } finally {
-      setCobolLoading(false);
-    }
-  };
 
   const handleGenerateAiInsight = async (appId: string) => {
     try {
@@ -127,18 +109,8 @@ export default function UnderstandPage({ workbook }: { workbook: Workbook }) {
           >
             Business Logic ({filteredRules.length})
           </button>
-          <button
-            onClick={() => setActiveTab('cobol')}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-              activeTab === 'cobol'
-                ? 'bg-cyan-600 text-white'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
-          >
-            COBOL Source Analysis
-          </button>
 
-          {activeTab !== 'applications' && activeTab !== 'cobol' && (
+          {activeTab !== 'applications' && (
             <select
               value={selectedAppId}
               onChange={(e) => setSelectedAppId(e.target.value)}
@@ -272,107 +244,6 @@ export default function UnderstandPage({ workbook }: { workbook: Workbook }) {
                     </div>
                   ))}
                   {filteredRules.length > 20 && <p className="text-slate-500 mt-2">Showing 20 of {filteredRules.length} rules</p>}
-                </div>
-              )}
-            </div>
-          )}
-
-          {!loading && !error && activeTab === 'cobol' && (
-            <div>
-              <h2 className="text-2xl font-bold text-slate-50 mb-4">COBOL Source Analysis</h2>
-              <p className="text-slate-400 mb-4">
-                Upload a single .cbl COBOL source file for structural analysis (divisions, data items,
-                paragraphs, CALLs, copybooks, file I/O, embedded SQL, complexity) — a demo companion to
-                the spreadsheet-based ingestion, working directly from real legacy source code.
-              </p>
-
-              <div className="flex items-center gap-3 mb-6">
-                <input
-                  type="file"
-                  accept=".cbl"
-                  onChange={(e) => setCobolFile(e.target.files?.[0] || null)}
-                  className="text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-700 file:text-slate-100 file:font-semibold hover:file:bg-slate-600"
-                />
-                <button
-                  onClick={handleAnalyzeCobol}
-                  disabled={!cobolFile || cobolLoading}
-                  className="px-6 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-600 text-white rounded-lg font-semibold transition-all whitespace-nowrap"
-                >
-                  {cobolLoading ? 'Analyzing...' : 'Analyze .cbl File'}
-                </button>
-              </div>
-
-              {cobolError && <p className="text-red-400 text-sm mb-4">{cobolError}</p>}
-
-              {cobolResult && (
-                <div>
-                  <AIInsightPanel
-                    narrative={cobolResult?.findings?.ai_narrative}
-                    aiGenerated={cobolResult?.findings?.ai_generated}
-                    fallbackReason={cobolResult?.findings?.ai_fallback_reason}
-                  />
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <p className="text-slate-400 text-xs">Program ID</p>
-                      <p className="font-bold text-slate-50">{cobolResult.findings.program_id || 'Unknown'}</p>
-                    </div>
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <p className="text-slate-400 text-xs">Lines of Code</p>
-                      <p className="font-bold text-slate-50">{cobolResult.findings.total_lines}</p>
-                    </div>
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <p className="text-slate-400 text-xs">Data Items</p>
-                      <p className="font-bold text-slate-50">{cobolResult.findings.data_item_count}</p>
-                    </div>
-                    <div className="bg-slate-800 p-3 rounded-lg">
-                      <p className="text-slate-400 text-xs">Complexity Estimate</p>
-                      <p className={`font-bold ${cobolResult.findings.complexity_estimate >= 15 ? 'text-red-400' : cobolResult.findings.complexity_estimate >= 8 ? 'text-yellow-400' : 'text-green-400'}`}>
-                        {cobolResult.findings.complexity_estimate}
-                      </p>
-                    </div>
-                  </div>
-
-                  {cobolResult.findings.summary && (
-                    <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 mb-4">
-                      <p className="text-xs text-slate-500 uppercase tracking-wide font-semibold mb-1">Business Purpose (AI)</p>
-                      <p className="text-slate-300 text-sm">{cobolResult.findings.summary}</p>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div className="bg-slate-800 p-4 rounded-lg border border-slate-700">
-                      <h4 className="font-semibold text-slate-200 text-sm mb-2">Structure</h4>
-                      <p className="text-slate-400 text-xs">Divisions: {cobolResult.findings.divisions_found?.join(', ') || 'None found'}</p>
-                      <p className="text-slate-400 text-xs">Paragraphs ({cobolResult.findings.paragraph_count}): {cobolResult.findings.paragraphs?.join(', ') || 'None found'}</p>
-                      <p className="text-slate-400 text-xs">Control flow: {cobolResult.findings.control_flow?.if_count} IF · {cobolResult.findings.control_flow?.evaluate_count} EVALUATE · {cobolResult.findings.control_flow?.perform_count} PERFORM · {cobolResult.findings.control_flow?.goto_count} GOTO</p>
-                    </div>
-                    <div className="bg-slate-800 p-4 rounded-lg border border-slate-700">
-                      <h4 className="font-semibold text-slate-200 text-sm mb-2">Dependencies &amp; I/O</h4>
-                      <p className="text-slate-400 text-xs">External CALLs: {cobolResult.findings.external_calls?.join(', ') || 'None'}</p>
-                      <p className="text-slate-400 text-xs">Copybooks: {cobolResult.findings.copybooks?.join(', ') || 'None'}</p>
-                      <p className="text-slate-400 text-xs">Files: {cobolResult.findings.file_io?.map((f: any) => `${f.file_name} → ${f.assigned_to}`).join(', ') || 'None'}</p>
-                      <p className="text-slate-400 text-xs">Embedded SQL blocks: {cobolResult.findings.embedded_sql_blocks}</p>
-                    </div>
-                  </div>
-
-                  {cobolResult.findings.modernization_notes?.length > 0 && (
-                    <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 mb-4">
-                      <h4 className="font-semibold text-cyan-300 text-sm mb-2">Modernization Notes (AI)</h4>
-                      <ul className="list-disc list-inside text-slate-300 text-xs space-y-1">
-                        {cobolResult.findings.modernization_notes.map((n: string, idx: number) => <li key={idx}>{n}</li>)}
-                      </ul>
-                    </div>
-                  )}
-
-                  {cobolResult.findings.risk_notes?.length > 0 && (
-                    <div className="bg-slate-800 p-4 rounded-lg border border-slate-700">
-                      <h4 className="font-semibold text-amber-300 text-sm mb-2">Risk Notes (AI)</h4>
-                      <ul className="list-disc list-inside text-slate-300 text-xs space-y-1">
-                        {cobolResult.findings.risk_notes.map((n: string, idx: number) => <li key={idx}>{n}</li>)}
-                      </ul>
-                    </div>
-                  )}
                 </div>
               )}
             </div>

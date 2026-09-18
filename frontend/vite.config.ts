@@ -6,8 +6,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3000,
+    strictPort: true,  // Fail if port is already in use instead of auto-incrementing
     hmr: {
-      protocol: 'http',
+      protocol: 'ws',
       host: 'localhost',
       port: 3000,
     },
