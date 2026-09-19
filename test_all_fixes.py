@@ -16,7 +16,7 @@ def test_all_fixes():
     print("\n" + "="*60)
     print("TEST 1: Upload XLSX File")
     print("="*60)
-    xlsx_path = r"c:\Users\SQ010W3\OneDrive - Volkswagen AG\Desktop\E2EAMS\E2EAMS\Application\LegacyX\Legacy_Modernization_Synthetic_Dataset.xlsx"
+    xlsx_path = r"c:\Users\SQ010W3\OneDrive - Volkswagen AG\Desktop\E2EAMS\E2EAMS\Application\LegacyIQ\Legacy_Modernization_Synthetic_Dataset.xlsx"
     
     if not os.path.exists(xlsx_path):
         print(f"❌ XLSX file not found: {xlsx_path}")

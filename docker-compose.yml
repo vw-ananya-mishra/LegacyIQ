@@ -8,7 +8,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=sqlite:///./data/cache/legacyx.db
+      - DATABASE_URL=sqlite:///./data/cache/legacyiq.db
       - LOG_LEVEL=info
     volumes:
       - ./backend/data:/app/data
@@ -47,8 +47,8 @@ services:
       - backend
       - frontend
     networks:
-      - legacyx-network
+      - legacyiq-network
 
 networks:
-  legacyx-network:
+  legacyiq-network:
     driver: bridge

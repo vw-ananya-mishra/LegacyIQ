@@ -1,7 +1,7 @@
 #!/bin/bash
-# start.sh - Start LegacyX Backend and Frontend
+# start.sh - Start LegacyIQ Backend and Frontend
 
-echo "🚀 Starting LegacyX..."
+echo "🚀 Starting LegacyIQ..."
 echo ""
 
 # Colors
@@ -77,7 +77,7 @@ sleep 3
 
 echo ""
 echo "${GREEN}========================================${NC}"
-echo "✨ LegacyX is running!"
+echo "✨ LegacyIQ is running!"
 echo "${GREEN}========================================${NC}"
 echo ""
 echo "📊 Backend:  http://localhost:8000"

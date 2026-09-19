@@ -41,7 +41,7 @@ echo.
 
 REM Start backend in a new window
 echo 🔧 Starting Backend (FastAPI)
-start "LegacyX Backend" python main.py
+start "LegacyIQ Backend" python main.py
 timeout /t 2 /nobreak
 
 echo.
@@ -60,11 +60,11 @@ echo.
 
 REM Start frontend in a new window
 echo 🎨 Starting Frontend (React + Vite)
-start "LegacyX Frontend" cmd /k npm run dev
+start "LegacyIQ Frontend" cmd /k npm run dev
 
 echo.
 echo ========================================
-echo ✨ LegacyX is starting!
+echo ✨ LegacyIQ is starting!
 echo ========================================
 echo.
 echo 📊 Backend:  http://localhost:8000

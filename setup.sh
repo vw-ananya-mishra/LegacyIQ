@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# LegacyX Project Setup Script
+# LegacyIQ Project Setup Script
 
 # Create project structure
-echo "Setting up LegacyX project structure..."
+echo "Setting up LegacyIQ project structure..."
 
-mkdir -p LegacyX/{backend,frontend,docs}
-cd LegacyX
+mkdir -p LegacyIQ/{backend,frontend,docs}
+cd LegacyIQ
 
 # Backend structure
 mkdir -p backend/{app,data,agents,utils}

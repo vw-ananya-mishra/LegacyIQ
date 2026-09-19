@@ -243,4 +243,4 @@ def create_sample_xlsx(output_path="Legacy_Modernization_Synthetic_Dataset.xlsx"
 
 if __name__ == "__main__":
     create_sample_xlsx()
-    print("\nYou can now upload this file to LegacyX!")
+    print("\nYou can now upload this file to LegacyIQ!")
